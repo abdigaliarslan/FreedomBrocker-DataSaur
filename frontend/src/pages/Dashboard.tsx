@@ -16,32 +16,32 @@ export default function DashboardPage() {
         {
             icon: Ticket,
             label: 'Всего тикетов',
-            value: statsData?.total_tickets.toLocaleString() || '1,248',
-            change: `+${statsData?.tickets_change_pct || 12}%`,
+            value: statsData?.total_tickets?.toLocaleString() || '0',
+            change: `+${statsData?.tickets_change_pct || 0}%`,
             up: true,
             color: 'bg-[linear-gradient(135deg,#00C853,#00BFA5)]'
         },
         {
             icon: Users,
             label: 'Менеджеры',
-            value: statsData?.active_managers.toString() || '32',
-            change: '+3',
+            value: statsData?.active_managers?.toString() || '0',
+            change: '',
             up: true,
             color: 'bg-[linear-gradient(135deg,#3B82F6,#2563EB)]'
         },
         {
             icon: Building2,
             label: 'Офисы',
-            value: statsData?.total_offices.toString() || '8',
-            change: '0',
+            value: statsData?.total_offices?.toString() || '0',
+            change: '',
             up: true,
             color: 'bg-[linear-gradient(135deg,#8B5CF6,#7C3AED)]'
         },
         {
             icon: Sparkles,
             label: 'AI-запросы',
-            value: statsData?.ai_processed_count.toLocaleString() || '3,456',
-            change: '+28%',
+            value: statsData?.ai_processed_count?.toLocaleString() || '0',
+            change: '',
             up: true,
             color: 'bg-[linear-gradient(135deg,#F59E0B,#D97706)]'
         },

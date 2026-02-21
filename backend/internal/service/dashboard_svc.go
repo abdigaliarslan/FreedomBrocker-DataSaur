@@ -22,6 +22,10 @@ type DashboardStats struct {
 	AvgConfidence    float64 `json:"avg_confidence"`
 	VIPCount         int     `json:"vip_count"`
 	UnknownGeoCount  int     `json:"unknown_geo_count"`
+	ActiveManagers   int     `json:"active_managers"`
+	TotalOffices     int     `json:"total_offices"`
+	AIProcessedCount int     `json:"ai_processed_count"`
+	TicketsChangePct float64 `json:"tickets_change_pct"`
 }
 
 func (s *DashboardService) Stats(ctx context.Context) (*DashboardStats, error) {
@@ -38,6 +42,9 @@ func (s *DashboardService) Stats(ctx context.Context) (*DashboardStats, error) {
 	s.pool.QueryRow(ctx, `SELECT COALESCE(AVG(confidence_type), 0) FROM ticket_ai`).Scan(&stats.AvgConfidence)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM tickets WHERE client_segment = 'VIP'`).Scan(&stats.VIPCount)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM ticket_ai WHERE geo_status = 'unknown'`).Scan(&stats.UnknownGeoCount)
+	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM managers WHERE is_active = true`).Scan(&stats.ActiveManagers)
+	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM business_units`).Scan(&stats.TotalOffices)
+	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM ticket_ai`).Scan(&stats.AIProcessedCount)
 
 	return &stats, nil
 }
