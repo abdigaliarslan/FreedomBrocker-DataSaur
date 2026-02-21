@@ -38,7 +38,6 @@ jobs:
           port: 22
           source: "frontend/dist/"
           target: "/var/www/FreedomBrocker-DataSaur/"
-          strip_components: 1
 
       # ──────────────── DEPLOY ON SERVER ────────────────
       - name: Deploy backend via SSH
