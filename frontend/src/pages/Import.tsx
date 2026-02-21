@@ -35,7 +35,7 @@ export default function ImportPage() {
             setResults(prev => prev.map(r => r.name === file.name ? {
                 ...r,
                 status: 'success',
-                rows: res.count || Math.floor(Math.random() * 500) + 100,
+                rows: res.data?.imported || res.imported || res.count || 0,
                 time: '1 сек'
             } : r));
         } catch (error) {

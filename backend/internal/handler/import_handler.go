@@ -14,6 +14,24 @@ func NewImportHandler(svc *service.ImportService) *ImportHandler {
 	return &ImportHandler{svc: svc}
 }
 
+// Import auto-detects file type from CSV headers and imports accordingly.
+func (h *ImportHandler) Import(w http.ResponseWriter, r *http.Request) {
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, "missing file field")
+		return
+	}
+	defer file.Close()
+
+	result, err := h.svc.DetectAndImport(r.Context(), file)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	RespondOK(w, result)
+}
+
 func (h *ImportHandler) ImportTickets(w http.ResponseWriter, r *http.Request) {
 	file, _, err := r.FormFile("file")
 	if err != nil {

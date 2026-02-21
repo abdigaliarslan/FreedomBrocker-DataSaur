@@ -90,7 +90,8 @@ func main() {
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
-		// Import
+		// Import (universal auto-detect + specific endpoints)
+		r.Post("/import", importH.Import)
 		r.Post("/import/tickets", importH.ImportTickets)
 		r.Post("/import/managers", importH.ImportManagers)
 		r.Post("/import/business-units", importH.ImportBusinessUnits)

@@ -25,9 +25,87 @@ func NewImportService(tr *repository.TicketRepo, mr *repository.ManagerRepo, br 
 }
 
 type ImportResult struct {
+	Type     string   `json:"type"`
 	Imported int      `json:"imported"`
 	Skipped  int      `json:"skipped"`
 	Errors   []string `json:"errors"`
+}
+
+// DetectAndImport reads CSV headers to auto-detect the file type, then imports accordingly.
+func (s *ImportService) DetectAndImport(ctx context.Context, r io.Reader) (*ImportResult, error) {
+	// Read all content so we can peek at headers then re-read
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("read file: %w", err)
+	}
+
+	// Peek at headers
+	peek := csv.NewReader(strings.NewReader(string(data)))
+	peek.LazyQuotes = true
+	peek.TrimLeadingSpace = true
+	header, err := peek.Read()
+	if err != nil {
+		return nil, fmt.Errorf("read header: %w", err)
+	}
+
+	colIdx := mapColumns(header)
+	fileType := detectFileType(colIdx)
+
+	reader := strings.NewReader(string(data))
+	switch fileType {
+	case "tickets":
+		res, err := s.ImportTickets(ctx, reader)
+		if err != nil {
+			return nil, err
+		}
+		res.Type = "tickets"
+		return res, nil
+	case "managers":
+		res, err := s.ImportManagers(ctx, reader)
+		if err != nil {
+			return nil, err
+		}
+		res.Type = "managers"
+		return res, nil
+	case "business_units":
+		res, err := s.ImportBusinessUnits(ctx, reader)
+		if err != nil {
+			return nil, err
+		}
+		res.Type = "business_units"
+		return res, nil
+	default:
+		return nil, fmt.Errorf("unable to detect file type from CSV headers: %v", header)
+	}
+}
+
+// detectFileType guesses the CSV type by checking which known columns are present.
+func detectFileType(colIdx map[string]int) string {
+	// Tickets: has "body" or "external_id" or "client_segment"
+	if _, ok := colIdx["body"]; ok {
+		return "tickets"
+	}
+	if _, ok := colIdx["external_id"]; ok {
+		return "tickets"
+	}
+	if _, ok := colIdx["client_segment"]; ok {
+		return "tickets"
+	}
+	// Managers: has "full_name" or "skills" or "current_load"
+	if _, ok := colIdx["full_name"]; ok {
+		return "managers"
+	}
+	if _, ok := colIdx["skills"]; ok {
+		return "managers"
+	}
+	if _, ok := colIdx["current_load"]; ok {
+		return "managers"
+	}
+	// Business units: has "address" column but not the others
+	if _, ok := colIdx["address"]; ok {
+		return "business_units"
+	}
+	return "unknown"
 }
 
 // mapColumns maps both English and Russian CSV headers to canonical internal keys.
