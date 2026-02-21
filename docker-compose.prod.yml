@@ -27,6 +27,8 @@ services:
       MIGRATIONS_DIR: "/migrations"
       N8N_WEBHOOK_URL: "http://host.docker.internal:5678/webhook"
       CORS_ORIGINS: "http://178.88.115.213"
+    ports:
+      - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
