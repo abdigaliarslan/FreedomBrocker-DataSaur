@@ -33,17 +33,5 @@ services:
       postgres:
         condition: service_healthy
 
-  nginx:
-    image: nginx:alpine
-    container_name: fire_nginx
-    restart: always
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./frontend/dist:/usr/share/nginx/html:ro
-    depends_on:
-      - backend
-
 volumes:
   pgdata:
