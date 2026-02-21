@@ -25,7 +25,7 @@ services:
       APP_PORT: "8080"
       DATABASE_URL: "postgres://fire_user:fire_pass_2026@postgres:5432/fire_db?sslmode=disable"
       MIGRATIONS_DIR: "/migrations"
-      N8N_WEBHOOK_URL: "http://host.docker.internal:5678/webhook"
+      N8N_WEBHOOK_URL: "https://n8n.documentolog.kz/webhook/fire-ticket"
       CORS_ORIGINS: "http://localhost:5173"
     ports:
       - "8080:8080"
