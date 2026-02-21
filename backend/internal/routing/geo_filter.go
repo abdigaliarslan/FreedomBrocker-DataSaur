@@ -59,6 +59,7 @@ func (g *GeoFilter) Resolve(ctx context.Context, ticketID uuid.UUID, lat, lon *f
 	// Find nearest office by Haversine distance
 	var nearest domain.BusinessUnit
 	minDist := math.MaxFloat64
+	found := false
 
 	for _, office := range offices {
 		if office.Lat == nil || office.Lon == nil {
@@ -68,7 +69,19 @@ func (g *GeoFilter) Resolve(ctx context.Context, ticketID uuid.UUID, lat, lon *f
 		if dist < minDist {
 			minDist = dist
 			nearest = office
+			found = true
 		}
+	}
+
+	// If no office has coordinates, fallback to first office
+	if !found {
+		nearest = offices[0]
+		return &GeoResult{
+			BusinessUnitID: nearest.ID,
+			City:           nearest.City,
+			Decision:       fmt.Sprintf("No office coordinates — fallback to %s", nearest.City),
+			Method:         "fallback_no_coords",
+		}, nil
 	}
 
 	return &GeoResult{
