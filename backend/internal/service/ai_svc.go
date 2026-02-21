@@ -92,17 +92,124 @@ type aiResult struct {
 	ConfidencePriority  float64  `json:"confidence_priority"`
 }
 
-// EnrichTicket runs AI enrichment + routing for a single ticket.
+// EnrichTicket runs hybrid enrichment (deterministic + AI) and routing for a single ticket.
 func (s *AIService) EnrichTicket(ctx context.Context, ticketID uuid.UUID) error {
 	ticket, err := s.ticketRepo.GetByID(ctx, ticketID)
 	if err != nil {
 		return fmt.Errorf("get ticket: %w", err)
 	}
 
-	// Update status to enriching
 	_ = s.ticketRepo.UpdateStatus(ctx, ticketID, "enriching")
 
-	// Build user message
+	// ── Phase 1: Deterministic pre-enrichment (instant, no API) ──
+	preResult := PreEnrich(ticket)
+
+	var preLat, preLon *float64
+	preGeoStatus := "unknown"
+	if preResult.GeoCity != nil && *preResult.GeoCity != "" {
+		preLat, preLon, preGeoStatus = s.resolveGeo(ctx, *preResult.GeoCity)
+	}
+
+	now := time.Now()
+	preActionsJSON, _ := json.Marshal(preResult.RecommendedActions)
+	aiID := uuid.New()
+
+	preAI := &domain.TicketAI{
+		ID:                  aiID,
+		TicketID:            ticketID,
+		Type:                &preResult.Type,
+		Sentiment:           &preResult.Sentiment,
+		Priority110:         &preResult.Priority110,
+		Lang:                preResult.Lang,
+		Summary:             &preResult.Summary,
+		RecommendedActions:  preActionsJSON,
+		Lat:                 preLat,
+		Lon:                 preLon,
+		GeoStatus:           preGeoStatus,
+		ConfidenceType:      &preResult.ConfidenceType,
+		ConfidenceSentiment: &preResult.ConfidenceSentiment,
+		ConfidencePriority:  &preResult.ConfidencePriority,
+		EnrichedAt:          &now,
+	}
+
+	if err := s.ticketRepo.UpsertAI(ctx, preAI); err != nil {
+		return fmt.Errorf("save pre-enrichment: %w", err)
+	}
+
+	_ = s.ticketRepo.UpdateStatus(ctx, ticketID, "enriched")
+
+	log.Info().Str("ticket_id", ticketID.String()).Str("type", preResult.Type).Str("mode", "deterministic").Msg("pre-enrichment saved")
+
+	// ── Phase 2: AI enrichment (may fail — that's OK, we have fallback) ──
+	userMsg := s.buildUserMessage(ticket)
+	aiRes, err := s.callOpenAI(ctx, userMsg)
+	if err != nil {
+		log.Warn().Err(err).Str("ticket_id", ticketID.String()).Msg("OpenAI failed, using deterministic enrichment only")
+
+		// Route with deterministic data (fallback)
+		if preResult.Type != "Спам" {
+			if routeErr := s.routingSvc.RouteTicket(ctx, ticket, preAI); routeErr != nil {
+				log.Error().Err(routeErr).Str("ticket_id", ticketID.String()).Msg("routing failed")
+			}
+		} else {
+			_ = s.ticketRepo.UpdateStatus(ctx, ticketID, "routed")
+		}
+
+		log.Info().Str("ticket_id", ticketID.String()).Str("type", preResult.Type).Str("mode", "deterministic_only").Msg("enrichment complete (AI fallback)")
+		return nil
+	}
+
+	// ── Phase 3: Merge deterministic + AI results ──
+	merged := MergeResults(preResult, aiRes)
+
+	geoCity := merged.GeoCity
+	if geoCity == nil {
+		geoCity = preResult.GeoCity
+	}
+
+	var lat, lon *float64
+	geoStatus := "unknown"
+	if geoCity != nil && *geoCity != "" {
+		lat, lon, geoStatus = s.resolveGeo(ctx, *geoCity)
+	}
+
+	mergedActionsJSON, _ := json.Marshal(merged.RecommendedActions)
+	mergedAI := &domain.TicketAI{
+		ID:                  aiID,
+		TicketID:            ticketID,
+		Type:                &merged.Type,
+		Sentiment:           &merged.Sentiment,
+		Priority110:         &merged.Priority110,
+		Lang:                merged.Lang,
+		Summary:             &merged.Summary,
+		RecommendedActions:  mergedActionsJSON,
+		Lat:                 lat,
+		Lon:                 lon,
+		GeoStatus:           geoStatus,
+		ConfidenceType:      &merged.ConfidenceType,
+		ConfidenceSentiment: &merged.ConfidenceSentiment,
+		ConfidencePriority:  &merged.ConfidencePriority,
+		EnrichedAt:          &now,
+	}
+
+	if err := s.ticketRepo.UpsertAI(ctx, mergedAI); err != nil {
+		return fmt.Errorf("save merged AI: %w", err)
+	}
+
+	// Route with merged data
+	if merged.Type != "Спам" {
+		if err := s.routingSvc.RouteTicket(ctx, ticket, mergedAI); err != nil {
+			log.Error().Err(err).Str("ticket_id", ticketID.String()).Msg("routing failed")
+		}
+	} else {
+		_ = s.ticketRepo.UpdateStatus(ctx, ticketID, "routed")
+	}
+
+	log.Info().Str("ticket_id", ticketID.String()).Str("type", merged.Type).Str("sentiment", merged.Sentiment).Str("mode", "hybrid").Msg("AI enrichment complete")
+	return nil
+}
+
+func (s *AIService) buildUserMessage(ticket *domain.Ticket) string {
 	userMsg := fmt.Sprintf("Тема: %s\n\nОбращение: %s", ticket.Subject, ticket.Body)
 	if ticket.ClientName != nil {
 		userMsg += fmt.Sprintf("\n\nКлиент: %s", *ticket.ClientName)
@@ -116,62 +223,7 @@ func (s *AIService) EnrichTicket(ctx context.Context, ticketID uuid.UUID) error 
 	if ticket.SourceChannel != nil {
 		userMsg += fmt.Sprintf("\nКанал: %s", *ticket.SourceChannel)
 	}
-
-	// Call OpenAI
-	result, err := s.callOpenAI(ctx, userMsg)
-	if err != nil {
-		log.Error().Err(err).Str("ticket_id", ticketID.String()).Msg("OpenAI enrichment failed")
-		_ = s.ticketRepo.UpdateStatus(ctx, ticketID, "new")
-		return fmt.Errorf("openai: %w", err)
-	}
-
-	// Resolve geo
-	var lat, lon *float64
-	geoStatus := "unknown"
-	if result.GeoCity != nil && *result.GeoCity != "" {
-		// Try to find office by city for geo coordinates
-		lat, lon, geoStatus = s.resolveGeo(ctx, *result.GeoCity)
-	}
-
-	// Save AI result
-	now := time.Now()
-	actionsJSON, _ := json.Marshal(result.RecommendedActions)
-
-	ai := &domain.TicketAI{
-		ID:                  uuid.New(),
-		TicketID:            ticketID,
-		Type:                &result.Type,
-		Sentiment:           &result.Sentiment,
-		Priority110:         &result.Priority110,
-		Lang:                result.Lang,
-		Summary:             &result.Summary,
-		RecommendedActions:  actionsJSON,
-		Lat:                 lat,
-		Lon:                 lon,
-		GeoStatus:           geoStatus,
-		ConfidenceType:      &result.ConfidenceType,
-		ConfidenceSentiment: &result.ConfidenceSentiment,
-		ConfidencePriority:  &result.ConfidencePriority,
-		EnrichedAt:          &now,
-	}
-
-	if err := s.ticketRepo.UpsertAI(ctx, ai); err != nil {
-		return fmt.Errorf("save AI: %w", err)
-	}
-
-	_ = s.ticketRepo.UpdateStatus(ctx, ticketID, "enriched")
-
-	// Route ticket (assign manager)
-	if result.Type != "Спам" {
-		if err := s.routingSvc.RouteTicket(ctx, ticket, ai); err != nil {
-			log.Error().Err(err).Str("ticket_id", ticketID.String()).Msg("routing failed")
-		}
-	} else {
-		_ = s.ticketRepo.UpdateStatus(ctx, ticketID, "routed")
-	}
-
-	log.Info().Str("ticket_id", ticketID.String()).Str("type", result.Type).Str("sentiment", result.Sentiment).Msg("AI enrichment complete")
-	return nil
+	return userMsg
 }
 
 func (s *AIService) callOpenAI(ctx context.Context, userMessage string) (*aiResult, error) {
