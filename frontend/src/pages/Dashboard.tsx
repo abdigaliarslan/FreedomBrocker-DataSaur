@@ -95,9 +95,19 @@ export default function DashboardPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
-                                    <tr>
-                                        <td colSpan={5} className="px-6 py-16 text-center text-[13px] text-muted-foreground">Нет данных</td>
-                                    </tr>
+                                    {[1, 2, 3, 4, 5].map((_, i) => (
+                                        <tr key={i} className="hover:bg-primary/5 transition-colors cursor-pointer group">
+                                            <td className="px-6 py-4 text-[13px] font-bold text-primary">TK-100{i + 1}</td>
+                                            <td className="px-6 py-4 text-[13px] font-medium text-foreground">Проблема с доступом {i + 1}</td>
+                                            <td className="px-6 py-4">
+                                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700">
+                                                    В работе
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-[13px] text-foreground font-medium">Алия К.</td>
+                                            <td className="px-6 py-4 text-[12px] text-muted-foreground">21 фев</td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
@@ -106,8 +116,22 @@ export default function DashboardPage() {
                     {/* Activity Feed */}
                     <div className="bg-white border border-border rounded-xl p-6 shadow-card">
                         <h3 className="text-base font-bold text-foreground mb-6">Активность</h3>
-                        <div className="flex flex-col items-center justify-center py-10 text-muted-foreground gap-2">
-                            <span className="text-[13px] font-medium">Нет активности</span>
+                        <div className="flex flex-col gap-5">
+                            {[
+                                { text: 'Новый тикет TK-1001 от клиента', time: '5 мин назад', color: 'bg-primary' },
+                                { text: 'Алия К. взяла тикет TK-1002', time: '12 мин назад', color: 'bg-blue-500' },
+                                { text: 'AI обработал 15 запросов', time: '30 мин назад', color: 'bg-accent' },
+                                { text: 'Тикет TK-998 закрыт', time: '1 час назад', color: 'bg-primary' },
+                                { text: 'Импортировано 230 записей', time: '2 часа назад', color: 'bg-blue-500' },
+                            ].map((a, i) => (
+                                <div key={i} className="flex gap-3">
+                                    <div className={cn("w-2 h-2 min-w-[8px] rounded-full mt-1.5", a.color)} />
+                                    <div className="flex flex-col">
+                                        <span className="text-[13px] font-medium text-foreground leading-snug">{a.text}</span>
+                                        <span className="text-[11px] text-muted-foreground mt-0.5">{a.time}</span>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
