@@ -58,6 +58,8 @@ func mapColumns(header []string) map[string]int {
 	m := make(map[string]int)
 	for i, col := range header {
 		key := strings.TrimSpace(strings.ToLower(col))
+		// Strip UTF-8 BOM from first column
+		key = strings.TrimPrefix(key, "\xef\xbb\xbf")
 		if alias, ok := aliases[key]; ok {
 			m[alias] = i
 		}
