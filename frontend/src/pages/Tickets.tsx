@@ -10,7 +10,7 @@ export default function TicketsPage() {
 
     useEffect(() => {
         fetchTickets({ page: 1, per_page: 10 })
-            .then((res: any) => setTickets(res.data))
+            .then((res: any) => setTickets(Array.isArray(res?.data) ? res.data : []))
             .catch(console.error);
     }, []);
 
