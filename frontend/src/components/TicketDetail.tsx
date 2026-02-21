@@ -10,16 +10,25 @@ interface Props {
     onChanged?: () => void;
 }
 
-const STATUS_OPTIONS = [
-    { value: 'new', label: 'Новый', color: 'bg-slate-100 text-slate-600' },
-    { value: 'enriching', label: 'AI обработка', color: 'bg-blue-100 text-blue-700' },
-    { value: 'enriched', label: 'Обогащён', color: 'bg-cyan-100 text-cyan-700' },
-    { value: 'routed', label: 'Маршрутизирован', color: 'bg-purple-100 text-purple-700' },
+const STATUS_BADGE: Record<string, { label: string; color: string }> = {
+    new: { label: 'Новый', color: 'bg-slate-100 text-slate-600' },
+    enriching: { label: 'AI обработка', color: 'bg-blue-100 text-blue-700 animate-pulse' },
+    enriched: { label: 'Обогащён', color: 'bg-cyan-100 text-cyan-700' },
+    routed: { label: 'Маршрутизирован', color: 'bg-purple-100 text-purple-700' },
+    open: { label: 'Открыт', color: 'bg-amber-100 text-amber-700' },
+    progress: { label: 'В работе', color: 'bg-blue-100 text-blue-700' },
+    resolved: { label: 'Решён', color: 'bg-emerald-100 text-emerald-700' },
+    closed: { label: 'Закрыт', color: 'bg-gray-100 text-gray-500' },
+};
+
+const MANUAL_STATUSES = [
     { value: 'open', label: 'Открыт', color: 'bg-amber-100 text-amber-700' },
     { value: 'progress', label: 'В работе', color: 'bg-blue-100 text-blue-700' },
     { value: 'resolved', label: 'Решён', color: 'bg-emerald-100 text-emerald-700' },
     { value: 'closed', label: 'Закрыт', color: 'bg-gray-100 text-gray-500' },
 ];
+
+const CAN_CHANGE_STATUS = ['routed', 'open', 'progress', 'resolved', 'closed'];
 
 const SENTIMENT_COLOR: Record<string, string> = {
     'Позитивный': 'text-emerald-600 bg-emerald-50',
@@ -106,21 +115,24 @@ export default function TicketDetail({ ticketId, onClose, onChanged }: Props) {
                             )}
                         </div>
 
-                        {/* Status pills */}
+                        {/* Status */}
                         <div>
                             <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Статус</label>
-                            <div className="flex flex-wrap gap-1.5 mt-2">
-                                {STATUS_OPTIONS.map(s => (
-                                    <button key={s.value} onClick={() => handleStatus(s.value)}
-                                        className={cn(
-                                            "px-3 py-1 rounded-full text-[11px] font-bold transition-all",
-                                            t.status === s.value
-                                                ? cn(s.color, "ring-2 ring-offset-1 ring-primary/30")
-                                                : "bg-background text-muted-foreground hover:bg-muted"
-                                        )}>
-                                        {s.label}
-                                    </button>
-                                ))}
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                                <span className={cn("px-3 py-1 rounded-full text-[11px] font-bold", STATUS_BADGE[t.status]?.color || 'bg-muted text-muted-foreground')}>
+                                    {STATUS_BADGE[t.status]?.label || t.status}
+                                </span>
+                                {CAN_CHANGE_STATUS.includes(t.status) && (
+                                    <>
+                                        <span className="text-[10px] text-muted-foreground">→</span>
+                                        {MANUAL_STATUSES.filter(s => s.value !== t.status).map(s => (
+                                            <button key={s.value} onClick={() => handleStatus(s.value)}
+                                                className="px-3 py-1 rounded-full text-[11px] font-bold bg-background text-muted-foreground hover:bg-muted transition-all">
+                                                {s.label}
+                                            </button>
+                                        ))}
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -197,7 +209,7 @@ export default function TicketDetail({ ticketId, onClose, onChanged }: Props) {
                                         <p className="text-[12px] text-foreground mt-1 leading-relaxed">{ai.summary}</p>
                                     </div>
                                 )}
-                                {ai.recommended_actions && ai.recommended_actions.length > 0 && (
+                                {Array.isArray(ai.recommended_actions) && ai.recommended_actions.length > 0 && (
                                     <div className="bg-white rounded-lg border border-border/50 p-3">
                                         <span className="text-[10px] text-muted-foreground font-bold uppercase">Рекомендации</span>
                                         <ul className="mt-1 space-y-1">

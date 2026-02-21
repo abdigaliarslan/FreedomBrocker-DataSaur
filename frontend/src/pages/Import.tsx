@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
-import { Upload, CheckCircle, AlertCircle, Bot, Loader2 } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, Bot, Loader2, Sparkles } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { importData } from '@/api/import';
+import { enrichAllTickets } from '@/api/tickets';
 
 interface ImportResult {
     name: string;
@@ -17,7 +18,10 @@ interface ImportResult {
 export default function ImportPage() {
     const [dragover, setDragover] = useState(false);
     const [results, setResults] = useState<ImportResult[]>([]);
+    const [enrichingAll, setEnrichingAll] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
+
+    const hasTicketImport = results.some(r => r.status === 'success' && r.type === 'Тикеты');
 
     const handleFile = async (file: File) => {
         const start = Date.now();
@@ -116,6 +120,21 @@ export default function ImportPage() {
                         </p>
                     </div>
                 </div>
+
+                {hasTicketImport && (
+                    <button
+                        onClick={async () => {
+                            setEnrichingAll(true);
+                            try { await enrichAllTickets(); } catch { /* ignore */ }
+                            finally { setEnrichingAll(false); }
+                        }}
+                        disabled={enrichingAll}
+                        className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-primary text-white font-bold text-[14px] hover:bg-primary/90 disabled:opacity-50 transition-all shadow-lg shadow-primary/20"
+                    >
+                        {enrichingAll ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                        {enrichingAll ? 'AI обрабатывает тикеты...' : 'Запустить AI-обогащение всех тикетов'}
+                    </button>
+                )}
 
                 <div className="space-y-4">
                     <h3 className="text-base font-bold text-foreground flex items-center gap-3">

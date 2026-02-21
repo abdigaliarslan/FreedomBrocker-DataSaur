@@ -1,18 +1,31 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Building2, MapPin, Navigation, Search, RotateCcw } from 'lucide-react';
+import { Building2, MapPin, Navigation, Search, RotateCcw, Users } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { fetchOffices } from '@/api/offices';
-import type { Office } from '@/types/models';
+import { fetchManagers } from '@/api/managers';
+import type { Office, Manager } from '@/types/models';
 
 export default function OfficesPage() {
     const [offices, setOffices] = useState<Office[]>([]);
+    const [managers, setManagers] = useState<Manager[]>([]);
     const [searchValue, setSearchValue] = useState('');
     const [cityFilter, setCityFilter] = useState('');
 
     useEffect(() => {
         fetchOffices().then(setOffices).catch(console.error);
+        fetchManagers().then(setManagers).catch(console.error);
     }, []);
+
+    const managerCountByOffice = useMemo(() => {
+        const counts: Record<string, number> = {};
+        for (const m of managers) {
+            if (m.business_unit_id) {
+                counts[m.business_unit_id] = (counts[m.business_unit_id] || 0) + 1;
+            }
+        }
+        return counts;
+    }, [managers]);
 
     const uniqueCities = useMemo(() => [...new Set(offices.map(o => o.city).filter(Boolean))].sort(), [offices]);
 
@@ -110,9 +123,16 @@ export default function OfficesPage() {
                                     </div>
                                 )}
 
-                                <div className="flex items-center gap-2 pt-2">
-                                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                                    <span className="text-[12px] font-bold text-primary">Активен</span>
+                                <div className="flex items-center justify-between pt-2">
+                                    <div className="flex items-center gap-2">
+                                        <Users className="w-4 h-4 text-primary" />
+                                        <span className="text-[13px] font-bold text-foreground">{managerCountByOffice[o.id] || 0}</span>
+                                        <span className="text-[12px] text-muted-foreground">менеджеров</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                                        <span className="text-[11px] font-bold text-primary">Активен</span>
+                                    </div>
                                 </div>
                             </div>
                         ))}

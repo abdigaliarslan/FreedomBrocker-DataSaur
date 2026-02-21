@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Search, Users, Globe, X, Briefcase, Mail, Building2, RotateCcw } from 'lucide-react';
+import { Search, Users, Globe, X, Briefcase, Mail, Building2, RotateCcw, ArrowUpDown } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { fetchManagers } from '@/api/managers';
@@ -12,6 +12,7 @@ export default function ManagersPage() {
     const [langFilter, setLangFilter] = useState('');
     const [roleFilter, setRoleFilter] = useState('');
     const [loadFilter, setLoadFilter] = useState('');
+    const [sortBy, setSortBy] = useState('name');
     const [selectedManager, setSelectedManager] = useState<Manager | null>(null);
 
     useEffect(() => {
@@ -45,6 +46,11 @@ export default function ManagersPage() {
         if (loadFilter === 'mid' && (m.utilization_pct < 50 || m.utilization_pct > 80)) return false;
         if (loadFilter === 'high' && m.utilization_pct <= 80) return false;
         return true;
+    }).sort((a, b) => {
+        if (sortBy === 'load_asc') return a.utilization_pct - b.utilization_pct;
+        if (sortBy === 'load_desc') return b.utilization_pct - a.utilization_pct;
+        if (sortBy === 'city') return (a.office_city || '').localeCompare(b.office_city || '');
+        return a.full_name.localeCompare(b.full_name);
     });
 
     const getRole = (m: Manager) => {
@@ -142,6 +148,19 @@ export default function ManagersPage() {
                             <option value="mid">Средняя (50-80%)</option>
                             <option value="high">Высокая (&gt; 80%)</option>
                         </select>
+                        <div className="flex items-center gap-1.5 ml-auto">
+                            <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground" />
+                            <select
+                                value={sortBy}
+                                onChange={e => setSortBy(e.target.value)}
+                                className="rounded-lg border border-border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all"
+                            >
+                                <option value="name">По имени</option>
+                                <option value="load_desc">Нагрузка ↓</option>
+                                <option value="load_asc">Нагрузка ↑</option>
+                                <option value="city">По городу</option>
+                            </select>
+                        </div>
                         {hasActiveFilters && (
                             <button
                                 onClick={resetFilters}

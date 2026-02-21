@@ -72,7 +72,11 @@ export default function TicketsPage() {
             .catch(console.error);
     }, [page, activeTab, debouncedSearch]);
 
-    useEffect(() => { loadTickets(); }, [loadTickets]);
+    useEffect(() => {
+        loadTickets();
+        const interval = setInterval(loadTickets, 10000);
+        return () => clearInterval(interval);
+    }, [loadTickets]);
 
     // Close dropdown on click outside
     useEffect(() => {
@@ -87,13 +91,8 @@ export default function TicketsPage() {
 
     // SSE live updates
     useSSE((event) => {
-        const { ticket_id, status } = event;
-        setTickets(prev => {
-            const exists = prev.find(t => t.id === ticket_id);
-            if (exists) return prev.map(t => t.id === ticket_id ? { ...t, status } : t);
-            loadTickets();
-            return prev;
-        });
+        const { ticket_id } = event;
+        loadTickets();
         setLiveUpdated(prev => new Set(prev).add(ticket_id));
         setTimeout(() => {
             setLiveUpdated(prev => { const next = new Set(prev); next.delete(ticket_id); return next; });

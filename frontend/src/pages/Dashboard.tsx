@@ -43,12 +43,8 @@ export default function DashboardPage() {
     const [managerLoad, setManagerLoad] = useState<ManagerLoadData[]>([]);
     const [sseEvents, setSSEEvents] = useState<SSETicketEvent[]>([]);
 
-    const loadStats = useCallback(() => {
+    const loadAll = useCallback(() => {
         fetchStats().then(setStatsData).catch(console.error);
-    }, []);
-
-    useEffect(() => {
-        loadStats();
         fetchTickets({ page: 1, per_page: 5 })
             .then((res: { data?: TicketType[] }) => setRecentTickets(Array.isArray(res?.data) ? res.data : []))
             .catch(console.error);
@@ -56,13 +52,17 @@ export default function DashboardPage() {
         fetchTimeline().then(setTimeline).catch(console.error);
         fetchCategories().then(setCategories).catch(console.error);
         fetchManagerLoad().then(setManagerLoad).catch(console.error);
+    }, []);
 
-        const interval = setInterval(loadStats, 15000);
+    useEffect(() => {
+        loadAll();
+        const interval = setInterval(loadAll, 15000);
         return () => clearInterval(interval);
-    }, [loadStats]);
+    }, [loadAll]);
 
     useSSE((event) => {
         setSSEEvents(prev => [event, ...prev].slice(0, 20));
+        loadAll();
     });
 
     const stats = [
