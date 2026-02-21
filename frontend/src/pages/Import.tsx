@@ -7,6 +7,8 @@ import { importData } from '@/api/import';
 interface ImportResult {
     name: string;
     rows: number;
+    total: number;
+    type: string;
     status: 'success' | 'error' | 'processing';
     time: string;
     error?: string;
@@ -14,17 +16,16 @@ interface ImportResult {
 
 export default function ImportPage() {
     const [dragover, setDragover] = useState(false);
-    const [results, setResults] = useState<ImportResult[]>([
-        { name: 'clients_data_2026.csv', rows: 1250, status: 'success', time: '3 сек' },
-        { name: 'tickets_export.xlsx', rows: 840, status: 'success', time: '2 сек' },
-        { name: 'managers_broken.csv', rows: 0, status: 'error', time: '—', error: 'Неверный формат колонок' },
-    ]);
+    const [results, setResults] = useState<ImportResult[]>([]);
     const fileRef = useRef<HTMLInputElement>(null);
 
     const handleFile = async (file: File) => {
+        const start = Date.now();
         const newResult: ImportResult = {
             name: file.name,
             rows: 0,
+            total: 0,
+            type: '',
             status: 'processing',
             time: '...'
         };
@@ -32,21 +33,29 @@ export default function ImportPage() {
 
         try {
             const res = await importData(file);
+            const d = res.data || res;
+            const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+            const typeLabels: Record<string, string> = {
+                tickets: 'Тикеты',
+                managers: 'Менеджеры',
+                business_units: 'Офисы',
+            };
             setResults(prev => prev.map(r => r.name === file.name ? {
                 ...r,
                 status: 'success',
-                rows: res.data?.imported || res.imported || res.count || 0,
-                time: '1 сек'
+                rows: d.imported || 0,
+                total: d.total || 0,
+                type: typeLabels[d.type] || d.type || '',
+                time: `${elapsed} сек`
             } : r));
-        } catch (error) {
+        } catch (error: unknown) {
             console.error(error);
+            const msg = error instanceof Error ? error.message : 'Сбой загрузки';
             setResults(prev => prev.map(r => r.name === file.name ? {
                 ...r,
                 status: 'error',
-                error: 'Сбой загрузки'
+                error: msg
             } : r));
-        } finally {
-            // Done processing
         }
     };
 
@@ -111,7 +120,9 @@ export default function ImportPage() {
                 <div className="space-y-4">
                     <h3 className="text-base font-bold text-foreground flex items-center gap-3">
                         История импорта
-                        <span className="px-2 py-0.5 rounded-full bg-background border border-border text-[10px] text-muted-foreground">3</span>
+                        {results.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-background border border-border text-[10px] text-muted-foreground">{results.length}</span>
+                        )}
                     </h3>
                     <div className="grid gap-3">
                         {results.map((r, i) => (
@@ -126,18 +137,21 @@ export default function ImportPage() {
                                             <Loader2 className="w-6 h-6 animate-spin" />}
                                 </div>
                                 <div className="flex-1">
-                                    <h4 className="text-[14px] font-bold text-foreground group-hover:text-primary transition-colors">{r.name}</h4>
+                                    <h4 className="text-[14px] font-bold text-foreground group-hover:text-primary transition-colors">
+                                        {r.name}
+                                        {r.type && <span className="ml-2 text-[11px] text-muted-foreground font-medium">({r.type})</span>}
+                                    </h4>
                                     <div className="flex items-center gap-3 mt-1 text-[11px] font-bold text-muted-foreground uppercase tracking-tighter">
                                         {r.status === 'success' ? (
                                             <>
-                                                <span className="text-success">{r.rows} записей</span>
+                                                <span className="text-success">{r.rows} из {r.total} записей импортировано</span>
                                                 <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
-                                                <span>Обработка: {r.time}</span>
+                                                <span>{r.time}</span>
                                             </>
                                         ) : r.error ? (
                                             <span className="text-destructive">{r.error}</span>
                                         ) : (
-                                            <span>Обработка AI...</span>
+                                            <span>Загрузка...</span>
                                         )}
                                     </div>
                                 </div>

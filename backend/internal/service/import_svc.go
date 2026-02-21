@@ -26,6 +26,7 @@ func NewImportService(tr *repository.TicketRepo, mr *repository.ManagerRepo, br 
 
 type ImportResult struct {
 	Type     string   `json:"type"`
+	Total    int      `json:"total"`
 	Imported int      `json:"imported"`
 	Skipped  int      `json:"skipped"`
 	Errors   []string `json:"errors"`
@@ -245,6 +246,8 @@ func (s *ImportService) ImportTickets(ctx context.Context, r io.Reader) (*Import
 		tickets = append(tickets, t)
 	}
 
+	result.Total = len(tickets) + result.Skipped
+
 	if len(tickets) > 0 {
 		inserted, err := s.ticketRepo.BulkInsert(ctx, tickets)
 		if err != nil {
@@ -378,6 +381,8 @@ func (s *ImportService) ImportManagers(ctx context.Context, r io.Reader) (*Impor
 		managers = append(managers, m)
 	}
 
+	result.Total = len(managers) + result.Skipped
+
 	if len(managers) > 0 {
 		inserted, err := s.managerRepo.BulkInsert(ctx, managers)
 		if err != nil {
@@ -438,6 +443,8 @@ func (s *ImportService) ImportBusinessUnits(ctx context.Context, r io.Reader) (*
 
 		units = append(units, bu)
 	}
+
+	result.Total = len(units) + result.Skipped
 
 	if len(units) > 0 {
 		inserted, err := s.buRepo.BulkInsert(ctx, units)
