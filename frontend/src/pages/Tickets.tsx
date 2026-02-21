@@ -65,7 +65,7 @@ export default function TicketsPage() {
         if (debouncedSearch) params.search = debouncedSearch;
 
         fetchTickets(params)
-            .then((res: any) => {
+            .then((res: { data?: Ticket[]; pagination?: Pagination }) => {
                 setTickets(Array.isArray(res?.data) ? res.data : []);
                 if (res?.pagination) setPagination(res.pagination);
             })
@@ -106,7 +106,11 @@ export default function TicketsPage() {
     const toggleSelect = (id: string) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
-            next.has(id) ? next.delete(id) : next.add(id);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
             return next;
         });
     };

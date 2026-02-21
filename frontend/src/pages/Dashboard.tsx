@@ -50,7 +50,7 @@ export default function DashboardPage() {
     useEffect(() => {
         loadStats();
         fetchTickets({ page: 1, per_page: 5 })
-            .then((res: any) => setRecentTickets(Array.isArray(res?.data) ? res.data : []))
+            .then((res: { data?: TicketType[] }) => setRecentTickets(Array.isArray(res?.data) ? res.data : []))
             .catch(console.error);
         fetchSentiment().then(setSentiment).catch(console.error);
         fetchTimeline().then(setTimeline).catch(console.error);

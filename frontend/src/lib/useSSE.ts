@@ -9,7 +9,9 @@ export interface SSETicketEvent {
 
 export function useSSE(onEvent: (event: SSETicketEvent) => void) {
     const cbRef = useRef(onEvent);
-    cbRef.current = onEvent;
+    useEffect(() => {
+        cbRef.current = onEvent;
+    });
 
     useEffect(() => {
         const es = new EventSource('/api/v1/events');
