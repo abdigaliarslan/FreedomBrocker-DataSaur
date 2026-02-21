@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -116,9 +117,10 @@ func (h *TicketHandler) Enrich(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Run enrichment async
+	// Run enrichment async with detached context
 	go func() {
-		if err := h.ai.EnrichTicket(r.Context(), id); err != nil {
+		ctx := context.Background()
+		if err := h.ai.EnrichTicket(ctx, id); err != nil {
 			log.Error().Err(err).Str("ticket_id", id.String()).Msg("enrichment failed")
 		}
 		GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: id.String(), Status: "enriched"})
@@ -143,10 +145,11 @@ func (h *TicketHandler) EnrichAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Run all enrichments in background
+	// Run all enrichments in background with detached context
 	go func() {
+		ctx := context.Background()
 		for _, t := range tickets {
-			if err := h.ai.EnrichTicket(r.Context(), t.ID); err != nil {
+			if err := h.ai.EnrichTicket(ctx, t.ID); err != nil {
 				log.Error().Err(err).Str("ticket_id", t.ID.String()).Msg("enrichment failed")
 				continue
 			}
