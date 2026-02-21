@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Search, Users, Globe, X, Briefcase, Mail, Building2 } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { Search, Users, Globe, X, Briefcase, Mail, Building2, RotateCcw } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { fetchManagers } from '@/api/managers';
@@ -8,16 +8,43 @@ import type { Manager } from '@/types/models';
 export default function ManagersPage() {
     const [managers, setManagers] = useState<Manager[]>([]);
     const [searchValue, setSearchValue] = useState('');
+    const [cityFilter, setCityFilter] = useState('');
+    const [langFilter, setLangFilter] = useState('');
+    const [roleFilter, setRoleFilter] = useState('');
+    const [loadFilter, setLoadFilter] = useState('');
     const [selectedManager, setSelectedManager] = useState<Manager | null>(null);
 
     useEffect(() => {
         fetchManagers().then(setManagers).catch(console.error);
     }, []);
 
+    const uniqueCities = useMemo(() => [...new Set(managers.map(m => m.office_city).filter(Boolean))].sort(), [managers]);
+    const uniqueLangs = useMemo(() => [...new Set(managers.flatMap(m => m.languages || []))].sort(), [managers]);
+
+    const hasActiveFilters = cityFilter || langFilter || roleFilter || loadFilter;
+
+    const resetFilters = () => {
+        setCityFilter('');
+        setLangFilter('');
+        setRoleFilter('');
+        setLoadFilter('');
+        setSearchValue('');
+    };
+
     const filtered = managers.filter(m => {
-        if (!searchValue) return true;
-        const q = searchValue.toLowerCase();
-        return m.full_name.toLowerCase().includes(q) || m.office_name?.toLowerCase().includes(q) || m.office_city?.toLowerCase().includes(q);
+        if (searchValue) {
+            const q = searchValue.toLowerCase();
+            if (!m.full_name.toLowerCase().includes(q) && !m.office_name?.toLowerCase().includes(q) && !m.office_city?.toLowerCase().includes(q)) return false;
+        }
+        if (cityFilter && m.office_city !== cityFilter) return false;
+        if (langFilter && !m.languages?.includes(langFilter)) return false;
+        if (roleFilter === 'vip' && !m.is_vip_skill) return false;
+        if (roleFilter === 'chief' && !m.is_chief_spec) return false;
+        if (roleFilter === 'regular' && (m.is_vip_skill || m.is_chief_spec)) return false;
+        if (loadFilter === 'low' && m.utilization_pct >= 50) return false;
+        if (loadFilter === 'mid' && (m.utilization_pct < 50 || m.utilization_pct > 80)) return false;
+        if (loadFilter === 'high' && m.utilization_pct <= 80) return false;
+        return true;
     });
 
     const getRole = (m: Manager) => {
@@ -49,12 +76,13 @@ export default function ManagersPage() {
         <div className="flex flex-col min-h-full">
             <Header title="Менеджеры" />
             <div className="p-8 space-y-6">
-                <div className="flex items-center justify-between">
-                    <span className="text-[13px] text-muted-foreground font-medium">
-                        {filtered.length} менеджеров {managers.filter(m => m.is_active).length > 0 && `(${managers.filter(m => m.is_active).length} активных)`}
-                    </span>
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-border focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/5 min-w-[240px] transition-all">
+                {/* Search + Filters */}
+                <div className="glass-card rounded-xl p-4 shadow-card space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                        <span className="text-[13px] text-muted-foreground font-medium shrink-0">
+                            {filtered.length} из {managers.length} менеджеров
+                        </span>
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-background border border-border focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/5 min-w-[240px] transition-all">
                             <Search className="w-4 h-4 text-muted-foreground" />
                             <input
                                 type="text"
@@ -64,6 +92,64 @@ export default function ManagersPage() {
                                 className="bg-transparent border-none outline-none text-[13px] w-full"
                             />
                         </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <select
+                            value={cityFilter}
+                            onChange={e => setCityFilter(e.target.value)}
+                            className={cn(
+                                "rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
+                                cityFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground"
+                            )}
+                        >
+                            <option value="">Все города</option>
+                            {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <select
+                            value={langFilter}
+                            onChange={e => setLangFilter(e.target.value)}
+                            className={cn(
+                                "rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
+                                langFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground"
+                            )}
+                        >
+                            <option value="">Все языки</option>
+                            {uniqueLangs.map(l => <option key={l} value={l}>{l}</option>)}
+                        </select>
+                        <select
+                            value={roleFilter}
+                            onChange={e => setRoleFilter(e.target.value)}
+                            className={cn(
+                                "rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
+                                roleFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground"
+                            )}
+                        >
+                            <option value="">Все роли</option>
+                            <option value="regular">Менеджер</option>
+                            <option value="vip">VIP менеджер</option>
+                            <option value="chief">Главный специалист</option>
+                        </select>
+                        <select
+                            value={loadFilter}
+                            onChange={e => setLoadFilter(e.target.value)}
+                            className={cn(
+                                "rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
+                                loadFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground"
+                            )}
+                        >
+                            <option value="">Любая нагрузка</option>
+                            <option value="low">Свободен (&lt; 50%)</option>
+                            <option value="mid">Средняя (50-80%)</option>
+                            <option value="high">Высокая (&gt; 80%)</option>
+                        </select>
+                        {hasActiveFilters && (
+                            <button
+                                onClick={resetFilters}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-bold text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5" /> Сбросить
+                            </button>
+                        )}
                     </div>
                 </div>
 

@@ -1,32 +1,84 @@
-import { useEffect, useState } from 'react';
-import { Building2, MapPin, Navigation } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { Building2, MapPin, Navigation, Search, RotateCcw } from 'lucide-react';
 import Header from '@/components/layout/Header';
+import { cn } from '@/lib/utils';
 import { fetchOffices } from '@/api/offices';
 import type { Office } from '@/types/models';
 
 export default function OfficesPage() {
     const [offices, setOffices] = useState<Office[]>([]);
+    const [searchValue, setSearchValue] = useState('');
+    const [cityFilter, setCityFilter] = useState('');
 
     useEffect(() => {
         fetchOffices().then(setOffices).catch(console.error);
     }, []);
 
+    const uniqueCities = useMemo(() => [...new Set(offices.map(o => o.city).filter(Boolean))].sort(), [offices]);
+
+    const hasActiveFilters = !!cityFilter;
+
+    const filtered = offices.filter(o => {
+        if (searchValue) {
+            const q = searchValue.toLowerCase();
+            if (!o.name.toLowerCase().includes(q) && !o.city.toLowerCase().includes(q) && !(o.address || '').toLowerCase().includes(q)) return false;
+        }
+        if (cityFilter && o.city !== cityFilter) return false;
+        return true;
+    });
+
     return (
         <div className="flex flex-col min-h-full">
             <Header title="Офисы" />
             <div className="p-8 space-y-6">
-                <div className="flex items-center justify-between">
-                    <span className="text-[13px] text-muted-foreground font-medium">{offices.length} офисов</span>
+                {/* Search + Filters */}
+                <div className="glass-card rounded-xl p-4 shadow-card space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                        <span className="text-[13px] text-muted-foreground font-medium shrink-0">
+                            {filtered.length} из {offices.length} офисов
+                        </span>
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-background border border-border focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/5 min-w-[240px] transition-all">
+                            <Search className="w-4 h-4 text-muted-foreground" />
+                            <input
+                                type="text"
+                                placeholder="Поиск офиса..."
+                                value={searchValue}
+                                onChange={e => setSearchValue(e.target.value)}
+                                className="bg-transparent border-none outline-none text-[13px] w-full"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <select
+                            value={cityFilter}
+                            onChange={e => setCityFilter(e.target.value)}
+                            className={cn(
+                                "rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
+                                cityFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground"
+                            )}
+                        >
+                            <option value="">Все города</option>
+                            {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        {hasActiveFilters && (
+                            <button
+                                onClick={() => { setCityFilter(''); setSearchValue(''); }}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-bold text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5" /> Сбросить
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                {offices.length === 0 ? (
+                {filtered.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-3">
                         <Building2 className="w-10 h-10 opacity-30" />
                         <span className="text-[14px] font-medium">Нет данных</span>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-children">
-                        {offices.map((o, i) => (
+                        {filtered.map((o, i) => (
                             <div key={o.id || i} className="glass-card rounded-xl p-7 transition-all hover:shadow-layered group animate-fade-in-up shadow-card">
                                 <div className="flex items-center gap-4 mb-6">
                                     <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">

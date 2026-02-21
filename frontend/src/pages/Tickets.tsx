@@ -15,6 +15,7 @@ const TABS = [
     { label: 'AI обработка', status: 'enriching' },
     { label: 'Обогащённые', status: 'enriched' },
     { label: 'Маршрутизированы', status: 'routed' },
+    { label: 'Решённые', status: 'resolved' },
 ];
 
 const STATUS_LABEL: Record<string, string> = {
@@ -256,7 +257,14 @@ export default function TicketsPage() {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-[13px] text-foreground/70">
-                                                {t.client_name || '—'}
+                                                <span className="flex items-center gap-1.5">
+                                                    {t.client_name || '—'}
+                                                    {(t.client_segment === 'VIP' || t.client_segment === 'Priority') && (
+                                                        <span className="inline-flex items-center gap-0.5 bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                                            👑 VIP
+                                                        </span>
+                                                    )}
+                                                </span>
                                             </td>
                                             <td className="px-6 py-4 text-[12px] text-muted-foreground">
                                                 {t.source_channel || '—'}

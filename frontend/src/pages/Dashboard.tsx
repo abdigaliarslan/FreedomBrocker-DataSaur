@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Ticket, Users, Building2, Sparkles, TrendingUp, TrendingDown, Activity, Clock, ArrowRight } from 'lucide-react';
+import { Ticket, Users, Building2, Sparkles, TrendingUp, TrendingDown, Activity, Clock, ArrowRight, Crown, MapPinOff } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { fetchStats, fetchSentiment, fetchTimeline, fetchCategories, fetchManagerLoad } from '@/api/dashboard';
@@ -70,25 +70,41 @@ export default function DashboardPage() {
             icon: Ticket, label: 'Всего тикетов',
             value: statsData?.total_tickets?.toLocaleString() || '0',
             change: `+${statsData?.tickets_change_pct || 0}%`, up: true,
-            color: 'bg-[linear-gradient(135deg,#00C853,#00BFA5)]'
+            color: 'bg-[linear-gradient(135deg,#00C853,#00BFA5)]',
+            subStats: statsData ? [
+                { label: 'В ожидании', value: statsData.pending_tickets },
+                { label: 'Маршрутизировано', value: statsData.routed_tickets },
+            ] : undefined,
         },
         {
             icon: Users, label: 'Менеджеры',
             value: statsData?.active_managers?.toString() || '0',
             change: '', up: true,
-            color: 'bg-[linear-gradient(135deg,#3B82F6,#2563EB)]'
+            color: 'bg-[linear-gradient(135deg,#3B82F6,#2563EB)]',
         },
         {
             icon: Building2, label: 'Офисы',
             value: statsData?.total_offices?.toString() || '0',
             change: '', up: true,
-            color: 'bg-[linear-gradient(135deg,#8B5CF6,#7C3AED)]'
+            color: 'bg-[linear-gradient(135deg,#8B5CF6,#7C3AED)]',
         },
         {
             icon: Sparkles, label: 'AI-запросы',
             value: statsData?.ai_processed_count?.toLocaleString() || '0',
             change: '', up: true,
-            color: 'bg-[linear-gradient(135deg,#F59E0B,#D97706)]'
+            color: 'bg-[linear-gradient(135deg,#F59E0B,#D97706)]',
+        },
+        {
+            icon: Crown, label: 'VIP обращения',
+            value: statsData?.vip_count?.toString() || '0',
+            change: '', up: true,
+            color: 'bg-[linear-gradient(135deg,#F59E0B,#D97706)]',
+        },
+        {
+            icon: MapPinOff, label: 'Без геолокации',
+            value: statsData?.unknown_geo_count?.toString() || '0',
+            change: '', up: true,
+            color: 'bg-[linear-gradient(135deg,#EF4444,#DC2626)]',
         },
     ];
 
@@ -120,23 +136,33 @@ export default function DashboardPage() {
             <Header title="Dashboard" />
             <div className="p-8 space-y-8">
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 stagger-children">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 stagger-children">
                     {stats.map((s, i) => (
                         <div key={i} className="glass-card rounded-xl p-6 flex items-start gap-4 transition-all hover:shadow-layered hover:-translate-y-0.5 animate-fade-in-up shadow-card">
                             <div className={cn("w-12 h-12 min-w-[48px] rounded-lg flex items-center justify-center text-white", s.color)}>
                                 <s.icon className="w-6 h-6" />
                             </div>
-                            <div className="flex flex-col">
+                            <div className="flex flex-col flex-1">
                                 <span className="text-[28px] font-extrabold text-foreground leading-tight animate-count-up">{s.value}</span>
                                 <span className="text-[13px] text-muted-foreground font-medium mt-0.5">{s.label}</span>
                                 {s.change && (
                                     <span className={cn(
-                                        "text-[11px] font-bold mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full",
+                                        "text-[11px] font-bold mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full w-fit",
                                         s.up ? "text-primary bg-primary/10" : "text-destructive bg-destructive/10"
                                     )}>
                                         {s.up ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                         {s.change}
                                     </span>
+                                )}
+                                {s.subStats && (
+                                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border">
+                                        {s.subStats.map((sub, j) => (
+                                            <div key={j} className="text-[11px]">
+                                                <span className="text-muted-foreground">{sub.label}: </span>
+                                                <span className="font-bold text-foreground">{sub.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         </div>

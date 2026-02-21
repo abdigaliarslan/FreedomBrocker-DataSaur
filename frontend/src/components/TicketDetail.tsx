@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Sparkles, User, MapPin, Clock, Loader2, AlertCircle, ChevronRight } from 'lucide-react';
+import { X, Sparkles, User, MapPin, Clock, Loader2, AlertCircle, ChevronRight, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fetchTicketDetail, enrichTicket, updateTicketStatus } from '@/api/tickets';
 import type { TicketWithDetails } from '@/types/models';
@@ -88,7 +88,16 @@ export default function TicketDetail({ ticketId, onClose, onChanged }: Props) {
                         {/* Subject + body */}
                         <div>
                             <h3 className="text-[16px] font-bold text-foreground leading-snug">{t.subject}</h3>
-                            {t.client_name && <p className="text-[12px] text-muted-foreground mt-1">Клиент: {t.client_name}</p>}
+                            {t.client_name && (
+                                <p className="text-[12px] text-muted-foreground mt-1 flex items-center gap-1.5">
+                                    Клиент: {t.client_name}
+                                    {(t.client_segment === 'VIP' || t.client_segment === 'Priority') && (
+                                        <span className="inline-flex items-center gap-0.5 bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                            👑 VIP
+                                        </span>
+                                    )}
+                                </p>
+                            )}
                             <p className="text-[13px] text-foreground/80 mt-3 whitespace-pre-wrap leading-relaxed">{t.body}</p>
                             {t.raw_address && (
                                 <div className="flex items-center gap-1.5 mt-2 text-[12px] text-muted-foreground">
@@ -134,20 +143,44 @@ export default function TicketDetail({ ticketId, onClose, onChanged }: Props) {
                                     {ai.type && (
                                         <div className="bg-white rounded-lg border border-border/50 p-2.5">
                                             <span className="text-[10px] text-muted-foreground font-bold uppercase">Тип</span>
-                                            <p className="text-[12px] font-bold text-foreground mt-0.5">{ai.type}</p>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                <p className="text-[12px] font-bold text-foreground">{ai.type}</p>
+                                                {ai.confidence_type != null && (
+                                                    <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                                                        ai.confidence_type > 0.8 ? "bg-emerald-100 text-emerald-700" :
+                                                        ai.confidence_type > 0.5 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                                                    )}>{Math.round(ai.confidence_type * 100)}%</span>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                     {ai.sentiment && (
                                         <div className="bg-white rounded-lg border border-border/50 p-2.5">
                                             <span className="text-[10px] text-muted-foreground font-bold uppercase">Тональность</span>
-                                            <p className={cn("text-[12px] font-bold mt-0.5 px-2 py-0.5 rounded-full inline-block", SENTIMENT_COLOR[ai.sentiment] || 'text-foreground')}>
-                                                {ai.sentiment}
-                                            </p>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                <p className={cn("text-[12px] font-bold px-2 py-0.5 rounded-full inline-block", SENTIMENT_COLOR[ai.sentiment] || 'text-foreground')}>
+                                                    {ai.sentiment}
+                                                </p>
+                                                {ai.confidence_sentiment != null && (
+                                                    <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                                                        ai.confidence_sentiment > 0.8 ? "bg-emerald-100 text-emerald-700" :
+                                                        ai.confidence_sentiment > 0.5 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                                                    )}>{Math.round(ai.confidence_sentiment * 100)}%</span>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                     {ai.priority_1_10 != null && (
                                         <div className="bg-white rounded-lg border border-border/50 p-2.5">
-                                            <span className="text-[10px] text-muted-foreground font-bold uppercase">Приоритет</span>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] text-muted-foreground font-bold uppercase">Приоритет</span>
+                                                {ai.confidence_priority != null && (
+                                                    <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                                                        ai.confidence_priority > 0.8 ? "bg-emerald-100 text-emerald-700" :
+                                                        ai.confidence_priority > 0.5 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                                                    )}>{Math.round(ai.confidence_priority * 100)}%</span>
+                                                )}
+                                            </div>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <div className="flex-1 h-2 bg-background rounded-full overflow-hidden">
                                                     <div className={cn("h-full rounded-full", ai.priority_1_10 > 7 ? 'bg-red-500' : ai.priority_1_10 > 4 ? 'bg-amber-500' : 'bg-primary')}
@@ -179,6 +212,17 @@ export default function TicketDetail({ ticketId, onClose, onChanged }: Props) {
                             </div>
                         )}
 
+                        {/* Spam indicator */}
+                        {ai?.type === 'Спам' && !assign && (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-center gap-3">
+                                <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+                                <div>
+                                    <p className="text-[13px] font-bold text-amber-800">Спам — менеджер не назначен</p>
+                                    <p className="text-[11px] text-amber-600 mt-0.5">AI определил обращение как спам. Оно сохранено для аналитики.</p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Assignment */}
                         {assign && mgr && (
                             <div className="rounded-xl border border-border p-4 space-y-2">
@@ -187,6 +231,11 @@ export default function TicketDetail({ ticketId, onClose, onChanged }: Props) {
                                 </div>
                                 <p className="text-[13px] text-foreground">{mgr.full_name}</p>
                                 <p className="text-[12px] text-muted-foreground">{mgr.office_name}, {mgr.office_city}</p>
+                                {assign.routing_reason && (
+                                    <p className="text-[11px] text-muted-foreground italic border-t border-border/50 pt-2 mt-2">
+                                        {assign.routing_reason}
+                                    </p>
+                                )}
                             </div>
                         )}
 
