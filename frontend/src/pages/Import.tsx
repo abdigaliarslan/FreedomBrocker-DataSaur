@@ -63,11 +63,14 @@ export default function ImportPage() {
         }
     };
 
+    const handleFiles = (files: FileList) => {
+        Array.from(files).forEach(f => handleFile(f));
+    };
+
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setDragover(false);
-        const file = e.dataTransfer?.files?.[0];
-        if (file) handleFile(file);
+        if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
     };
 
     return (
@@ -91,7 +94,8 @@ export default function ImportPage() {
                         ref={fileRef}
                         className="hidden"
                         accept=".csv,.xlsx,.xls"
-                        onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
+                        multiple
+                        onChange={e => { if (e.target.files?.length) handleFiles(e.target.files); }}
                     />
                     <div className="w-20 h-20 rounded-[2rem] bg-primary/10 flex items-center justify-center text-primary mx-auto mb-8 transition-transform group-hover:-translate-y-2 group-hover:bg-primary group-hover:text-white duration-500">
                         <Upload className="w-10 h-10" />
