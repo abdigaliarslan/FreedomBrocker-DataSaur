@@ -69,7 +69,7 @@ func main() {
 	starSvc := service.NewStarService(pool, cfg.N8NWebhookURL)
 
 	// Handlers
-	importH := handler.NewImportHandler(importSvc)
+	importH := handler.NewImportHandler(importSvc, cfg.N8NWebhookURL)
 	callbackH := handler.NewCallbackHandler(ticketRepo, routingSvc)
 	ticketH := handler.NewTicketHandler(ticketSvc, cfg.N8NWebhookURL)
 	managerH := handler.NewManagerHandler(managerSvc)
