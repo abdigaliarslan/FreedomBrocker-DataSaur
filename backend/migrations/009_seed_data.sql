@@ -1,1 +1,1 @@
--- Seed data removed: real CSV data is imported via /api/v1/import endpoints.
+-- No seed data. All data is imported via /api/v1/import endpoints.
