@@ -76,7 +76,7 @@ export default function ImportPage() {
                     onDrop={handleDrop}
                     onClick={() => fileRef.current?.click()}
                     className={cn(
-                        "group bg-white border-2 border-dashed rounded-[2rem] p-16 text-center transition-all cursor-pointer shadow-sm hover:shadow-xl",
+                        "group glass-card border-2 border-dashed rounded-[2rem] p-16 text-center transition-all cursor-pointer shadow-card hover:shadow-layered",
                         dragover
                             ? "border-primary bg-primary/5 scale-[1.02]"
                             : "border-border hover:border-primary/50"
@@ -104,7 +104,7 @@ export default function ImportPage() {
                     </div>
                 </div>
 
-                <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 flex gap-5 items-start">
+                <div className="glass-card rounded-2xl p-6 flex gap-5 items-start border border-primary/20 shadow-card">
                     <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white shrink-0 shadow-lg shadow-primary/20">
                         <Bot className="w-6 h-6" />
                     </div>
@@ -126,11 +126,14 @@ export default function ImportPage() {
                     </h3>
                     <div className="grid gap-3">
                         {results.map((r, i) => (
-                            <div key={i} className="bg-white border border-border rounded-2xl p-5 flex items-center gap-5 transition-all hover:border-primary/30 group">
+                            <div key={i} className={cn(
+                                "glass-card rounded-2xl p-5 flex items-center gap-5 transition-all hover:shadow-layered group shadow-card",
+                                r.status === 'processing' && "skeleton"
+                            )}>
                                 <div className={cn(
                                     "w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
-                                    r.status === 'success' ? "bg-success/10 text-success" :
-                                        r.status === 'error' ? "bg-destructive/10 text-destructive" : "bg-blue-100 text-blue-600"
+                                    r.status === 'success' ? "bg-emerald-50 text-emerald-600" :
+                                        r.status === 'error' ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
                                 )}>
                                     {r.status === 'success' ? <CheckCircle className="w-6 h-6" /> :
                                         r.status === 'error' ? <AlertCircle className="w-6 h-6" /> :
@@ -144,12 +147,12 @@ export default function ImportPage() {
                                     <div className="flex items-center gap-3 mt-1 text-[11px] font-bold text-muted-foreground uppercase tracking-tighter">
                                         {r.status === 'success' ? (
                                             <>
-                                                <span className="text-success">{r.total} записей обработано</span>
+                                                <span className="text-emerald-600">{r.total} записей обработано</span>
                                                 <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
                                                 <span>{r.time}</span>
                                             </>
                                         ) : r.error ? (
-                                            <span className="text-destructive">{r.error}</span>
+                                            <span className="text-red-600">{r.error}</span>
                                         ) : (
                                             <span>Загрузка...</span>
                                         )}
@@ -157,8 +160,8 @@ export default function ImportPage() {
                                 </div>
                                 <div className={cn(
                                     "px-4 py-1.5 rounded-full text-[11px] font-extrabold uppercase tracking-widest",
-                                    r.status === 'success' ? "bg-success/15 text-success" :
-                                        r.status === 'error' ? "bg-destructive/15 text-destructive" : "bg-blue-100 text-blue-600"
+                                    r.status === 'success' ? "bg-emerald-50 text-emerald-600" :
+                                        r.status === 'error' ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
                                 )}>
                                     {r.status === 'success' ? 'Готово' : r.status === 'error' ? 'Ошибка' : 'В процессе'}
                                 </div>

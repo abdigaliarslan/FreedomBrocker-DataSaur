@@ -117,9 +117,9 @@ func mapColumns(header []string) map[string]int {
 		"офис":  "name",
 		"адрес": "address",
 		// Managers (Russian)
-		"фио":                           "full_name",
-		"должность":                     "position",
-		"навыки":                        "skills",
+		"фио":       "full_name",
+		"должность": "position",
+		"навыки":    "skills",
 		"количество обращений в работе": "current_load",
 		// Tickets (Russian)
 		"guid клиента":     "external_id",
