@@ -29,7 +29,7 @@ func (r *TicketRepo) Insert(ctx context.Context, t *domain.Ticket) error {
 	return err
 }
 
-func (r *TicketRepo) BulkInsert(ctx context.Context, tickets []domain.Ticket) (int, error) {
+func (r *TicketRepo) BulkInsert(ctx context.Context, tickets []domain.Ticket) ([]uuid.UUID, error) {
 	batch := &pgx.Batch{}
 	for _, t := range tickets {
 		batch.Queue(
@@ -41,22 +41,24 @@ func (r *TicketRepo) BulkInsert(ctx context.Context, tickets []domain.Ticket) (i
 			   client_name = EXCLUDED.client_name,
 			   client_segment = EXCLUDED.client_segment,
 			   source_channel = EXCLUDED.source_channel,
-			   raw_address = EXCLUDED.raw_address`,
+			   raw_address = EXCLUDED.raw_address
+			 RETURNING id`,
 			t.ID, t.ExternalID, t.Subject, t.Body, t.ClientName, t.ClientSegment, t.SourceChannel, t.Status, t.RawAddress,
 		)
 	}
 	br := r.pool.SendBatch(ctx, batch)
 	defer br.Close()
 
-	inserted := 0
+	ids := make([]uuid.UUID, 0, len(tickets))
 	for range tickets {
-		ct, err := br.Exec()
+		var id uuid.UUID
+		err := br.QueryRow().Scan(&id)
 		if err != nil {
-			return inserted, err
+			return ids, err
 		}
-		inserted += int(ct.RowsAffected())
+		ids = append(ids, id)
 	}
-	return inserted, nil
+	return ids, nil
 }
 
 func (r *TicketRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Ticket, error) {

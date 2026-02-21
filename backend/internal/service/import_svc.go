@@ -25,11 +25,12 @@ func NewImportService(tr *repository.TicketRepo, mr *repository.ManagerRepo, br 
 }
 
 type ImportResult struct {
-	Type     string   `json:"type"`
-	Total    int      `json:"total"`
-	Imported int      `json:"imported"`
-	Skipped  int      `json:"skipped"`
-	Errors   []string `json:"errors"`
+	Type        string      `json:"type"`
+	Total       int         `json:"total"`
+	Imported    int         `json:"imported"`
+	Skipped     int         `json:"skipped"`
+	Errors      []string    `json:"errors"`
+	ImportedIDs []uuid.UUID `json:"imported_ids,omitempty"`
 }
 
 // DetectAndImport reads CSV headers to auto-detect the file type, then imports accordingly.
@@ -249,12 +250,13 @@ func (s *ImportService) ImportTickets(ctx context.Context, r io.Reader) (*Import
 	result.Total = len(tickets) + result.Skipped
 
 	if len(tickets) > 0 {
-		inserted, err := s.ticketRepo.BulkInsert(ctx, tickets)
+		ids, err := s.ticketRepo.BulkInsert(ctx, tickets)
 		if err != nil {
 			return nil, fmt.Errorf("bulk insert tickets: %w", err)
 		}
-		result.Imported = inserted
-		result.Skipped += len(tickets) - inserted
+		result.Imported = len(ids)
+		result.ImportedIDs = ids
+		result.Skipped += len(tickets) - len(ids)
 	}
 
 	return result, nil
