@@ -14,15 +14,7 @@ export default function TicketsPage() {
             .catch(console.error);
     }, []);
 
-    // Mock data if API is empty
-    const displayTickets = tickets.length > 0 ? tickets : Array(8).fill(null).map((_, i) => ({
-        id: `TK-100${i + 1}`,
-        subject: `Проблема с оплатой в приложении #${i + 1}`,
-        status: i % 3 === 0 ? 'resolved' : i % 3 === 1 ? 'progress' : 'open',
-        priority: i % 2 === 0 ? 'high' : 'medium',
-        manager_id: 'Алия К.',
-        created_at: '21 фев, 14:30',
-    }));
+    const displayTickets = tickets;
 
     const getStatusStyle = (status: string) => {
         switch (status) {
@@ -93,7 +85,11 @@ export default function TicketsPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
-                                {displayTickets.map((t: any, i: number) => (
+                                {displayTickets.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} className="px-6 py-16 text-center text-[13px] text-muted-foreground">Нет тикетов</td>
+                                    </tr>
+                                ) : displayTickets.map((t: any, i: number) => (
                                     <tr key={i} className="hover:bg-primary/5 transition-colors cursor-pointer group">
                                         <td className="px-6 py-4">
                                             <input type="checkbox" className="rounded border-border text-primary focus:ring-primary" />
