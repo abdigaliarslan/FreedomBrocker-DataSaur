@@ -66,12 +66,13 @@ func main() {
 	ticketSvc := service.NewTicketService(ticketRepo, assignmentRepo, auditRepo, managerRepo, buRepo)
 	managerSvc := service.NewManagerService(managerRepo, buRepo)
 	dashboardSvc := service.NewDashboardService(pool)
-	starSvc := service.NewStarService(pool, cfg.N8NWebhookURL)
+	starSvc := service.NewStarService(pool)
+	aiSvc := service.NewAIService(cfg.OpenAIKey, cfg.OpenAIModel, ticketRepo, routingSvc)
 
 	// Handlers
-	importH := handler.NewImportHandler(importSvc, cfg.N8NWebhookURL)
+	importH := handler.NewImportHandler(importSvc)
 	callbackH := handler.NewCallbackHandler(ticketRepo, assignmentRepo, routingSvc)
-	ticketH := handler.NewTicketHandler(ticketSvc, cfg.N8NWebhookURL)
+	ticketH := handler.NewTicketHandler(ticketSvc, aiSvc)
 	managerH := handler.NewManagerHandler(managerSvc)
 	dashboardH := handler.NewDashboardHandler(dashboardSvc)
 	starH := handler.NewStarHandler(starSvc)
@@ -82,7 +83,7 @@ func main() {
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
-	r.Use(chimw.Timeout(30 * time.Second))
+	r.Use(chimw.Timeout(120 * time.Second))
 	r.Use(mw.CORSHandler(cfg.CORSOrigins))
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +97,7 @@ func main() {
 		r.Post("/import/managers", importH.ImportManagers)
 		r.Post("/import/business-units", importH.ImportBusinessUnits)
 
-		// Internal callbacks (from n8n)
+		// Internal callbacks (kept for backward compatibility)
 		r.Route("/internal/callback", func(r chi.Router) {
 			r.Post("/enrich", callbackH.HandleEnrichment)
 			r.Post("/star-query", callbackH.HandleStarQuery)

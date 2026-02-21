@@ -9,12 +9,11 @@ import (
 )
 
 type StarService struct {
-	pool          *pgxpool.Pool
-	n8nWebhookURL string
+	pool *pgxpool.Pool
 }
 
-func NewStarService(pool *pgxpool.Pool, n8nURL string) *StarService {
-	return &StarService{pool: pool, n8nWebhookURL: n8nURL}
+func NewStarService(pool *pgxpool.Pool) *StarService {
+	return &StarService{pool: pool}
 }
 
 type StarQueryRequest struct {

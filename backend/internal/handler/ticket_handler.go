@@ -1,12 +1,10 @@
 package handler
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -17,17 +15,12 @@ import (
 )
 
 type TicketHandler struct {
-	svc           *service.TicketService
-	n8nWebhookURL string
-	httpClient    *http.Client
+	svc *service.TicketService
+	ai  *service.AIService
 }
 
-func NewTicketHandler(svc *service.TicketService, n8nWebhookURL string) *TicketHandler {
-	return &TicketHandler{
-		svc:           svc,
-		n8nWebhookURL: n8nWebhookURL,
-		httpClient:    &http.Client{Timeout: 30 * time.Second},
-	}
+func NewTicketHandler(svc *service.TicketService, ai *service.AIService) *TicketHandler {
+	return &TicketHandler{svc: svc, ai: ai}
 }
 
 func (h *TicketHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +107,7 @@ func (h *TicketHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	RespondOK(w, map[string]string{"status": req.Status})
 }
 
-// Enrich triggers n8n enrichment for a single ticket.
+// Enrich runs AI enrichment for a single ticket (no n8n, direct OpenAI).
 func (h *TicketHandler) Enrich(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)
@@ -123,21 +116,22 @@ func (h *TicketHandler) Enrich(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.triggerN8N(id); err != nil {
-		RespondError(w, http.StatusInternalServerError, "failed to trigger n8n: "+err.Error())
-		return
-	}
-
-	_ = h.svc.UpdateStatus(r.Context(), id, "enriching")
+	// Run enrichment async
+	go func() {
+		if err := h.ai.EnrichTicket(r.Context(), id); err != nil {
+			log.Error().Err(err).Str("ticket_id", id.String()).Msg("enrichment failed")
+		}
+		GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: id.String(), Status: "enriched"})
+	}()
 
 	RespondOK(w, map[string]interface{}{
 		"ticket_id": id,
 		"status":    "enriching",
-		"message":   "n8n enrichment triggered",
+		"message":   "AI enrichment started",
 	})
 }
 
-// EnrichAll triggers n8n enrichment for all tickets with status "new".
+// EnrichAll runs AI enrichment for all tickets with status "new".
 func (h *TicketHandler) EnrichAll(w http.ResponseWriter, r *http.Request) {
 	tickets, _, err := h.svc.List(r.Context(), domain.TicketListFilter{
 		Status:  "new",
@@ -149,40 +143,20 @@ func (h *TicketHandler) EnrichAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	triggered := 0
-	errors := []string{}
-
-	for _, t := range tickets {
-		if err := h.triggerN8N(t.ID); err != nil {
-			errors = append(errors, fmt.Sprintf("%s: %v", t.ID, err))
-			continue
+	// Run all enrichments in background
+	go func() {
+		for _, t := range tickets {
+			if err := h.ai.EnrichTicket(r.Context(), t.ID); err != nil {
+				log.Error().Err(err).Str("ticket_id", t.ID.String()).Msg("enrichment failed")
+				continue
+			}
+			GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: t.ID.String(), Status: "enriched"})
 		}
-		_ = h.svc.UpdateStatus(r.Context(), t.ID, "enriching")
-		triggered++
-	}
+		log.Info().Int("count", len(tickets)).Msg("batch enrichment complete")
+	}()
 
 	RespondOK(w, map[string]interface{}{
-		"total":     len(tickets),
-		"triggered": triggered,
-		"errors":    errors,
+		"total":   len(tickets),
+		"message": fmt.Sprintf("AI enrichment started for %d tickets", len(tickets)),
 	})
-}
-
-func (h *TicketHandler) triggerN8N(ticketID uuid.UUID) error {
-	payload, _ := json.Marshal(map[string]string{
-		"ticket_id": ticketID.String(),
-	})
-
-	resp, err := h.httpClient.Post(h.n8nWebhookURL, "application/json", bytes.NewReader(payload))
-	if err != nil {
-		return fmt.Errorf("POST to n8n: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("n8n returned status %d", resp.StatusCode)
-	}
-
-	log.Info().Str("ticket_id", ticketID.String()).Int("status", resp.StatusCode).Msg("n8n enrichment triggered")
-	return nil
 }
