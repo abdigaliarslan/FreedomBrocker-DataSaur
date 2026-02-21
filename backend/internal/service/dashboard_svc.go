@@ -26,6 +26,7 @@ type DashboardStats struct {
 	TotalOffices     int     `json:"total_offices"`
 	AIProcessedCount int     `json:"ai_processed_count"`
 	TicketsChangePct float64 `json:"tickets_change_pct"`
+	AvgProcessingMs  float64 `json:"avg_processing_ms"`
 }
 
 func (s *DashboardService) Stats(ctx context.Context) (*DashboardStats, error) {
@@ -45,6 +46,7 @@ func (s *DashboardService) Stats(ctx context.Context) (*DashboardStats, error) {
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM managers WHERE is_active = true`).Scan(&stats.ActiveManagers)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM business_units`).Scan(&stats.TotalOffices)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM ticket_ai`).Scan(&stats.AIProcessedCount)
+	s.pool.QueryRow(ctx, `SELECT COALESCE(AVG(processing_ms), 0) FROM ticket_ai WHERE processing_ms IS NOT NULL`).Scan(&stats.AvgProcessingMs)
 
 	return &stats, nil
 }

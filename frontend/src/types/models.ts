@@ -9,6 +9,7 @@ export interface Ticket {
     source_channel: string | null;
     status: string;
     raw_address: string | null;
+    attachments: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -29,6 +30,7 @@ export interface TicketAI {
     confidence_type: number | null;
     confidence_sentiment: number | null;
     confidence_priority: number | null;
+    processing_ms: number | null;
     enriched_at: string | null;
     created_at: string;
 }

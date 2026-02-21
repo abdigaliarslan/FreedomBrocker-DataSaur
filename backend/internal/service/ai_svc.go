@@ -3,10 +3,14 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,15 +26,17 @@ type AIService struct {
 	httpClient *http.Client
 	ticketRepo *repository.TicketRepo
 	routingSvc *RoutingService
+	imagesDir  string
 }
 
-func NewAIService(apiKey, model string, ticketRepo *repository.TicketRepo, routingSvc *RoutingService) *AIService {
+func NewAIService(apiKey, model, imagesDir string, ticketRepo *repository.TicketRepo, routingSvc *RoutingService) *AIService {
 	return &AIService{
 		apiKey:     apiKey,
 		model:      model,
 		httpClient: &http.Client{Timeout: 60 * time.Second},
 		ticketRepo: ticketRepo,
 		routingSvc: routingSvc,
+		imagesDir:  imagesDir,
 	}
 }
 
@@ -38,7 +44,7 @@ const systemPrompt = `Ты — AI-аналитик банка Freedom Broker. А
 
 Формат ответа (строго JSON):
 {
-  "type": "тип обращения: Жалоба | Консультация | Заявка | Благодарность | Спам | Техническая проблема | Другое",
+  "type": "тип обращения: Жалоба | Претензия | Консультация | Неработоспособность | Смена данных | Спам",
   "sentiment": "Позитивный | Негативный | Нейтральный",
   "priority_1_10": число от 1 до 10,
   "lang": "RU | KZ | EN",
@@ -50,10 +56,19 @@ const systemPrompt = `Ты — AI-аналитик банка Freedom Broker. А
   "confidence_priority": число от 0.0 до 1.0
 }
 
+Типы обращений:
+- Жалоба — выражение недовольства качеством обслуживания, без требования компенсации
+- Претензия — недовольство + требование компенсации, возврата средств, официальная претензия
+- Консультация — запрос информации, вопрос, нейтральное обращение
+- Неработоспособность — технический сбой, ошибка в приложении/системе, что-то не работает
+- Смена данных — запрос на изменение личных данных, реквизитов, адреса, ФИО
+- Спам — нежелательная корреспонденция, реклама, мошенничество
+
 Правила:
 - VIP и Priority клиенты автоматически получают приоритет >= 7
-- Жалобы — приоритет >= 6
+- Жалобы и Претензии — приоритет >= 6, Претензии >= 8
 - Спам — приоритет 1
+- Неработоспособность — приоритет >= 6
 - Если клиент упоминает город — укажи в geo_city
 - recommended_actions — конкретные действия для менеджера (2-4 пункта)
 - summary — на русском языке`
@@ -94,6 +109,8 @@ type aiResult struct {
 
 // EnrichTicket runs hybrid enrichment (deterministic + AI) and routing for a single ticket.
 func (s *AIService) EnrichTicket(ctx context.Context, ticketID uuid.UUID) error {
+	startTime := time.Now()
+
 	ticket, err := s.ticketRepo.GetByID(ctx, ticketID)
 	if err != nil {
 		return fmt.Errorf("get ticket: %w", err)
@@ -142,9 +159,23 @@ func (s *AIService) EnrichTicket(ctx context.Context, ticketID uuid.UUID) error 
 
 	// ── Phase 2: AI enrichment (may fail — that's OK, we have fallback) ──
 	userMsg := s.buildUserMessage(ticket)
-	aiRes, err := s.callOpenAI(ctx, userMsg)
+
+	// Use Vision API if ticket has image attachments
+	var aiRes *aiResult
+	imagePaths := s.resolveImagePaths(ticket.Attachments)
+	if len(imagePaths) > 0 {
+		log.Info().Str("ticket_id", ticketID.String()).Int("images", len(imagePaths)).Msg("using Vision API for image analysis")
+		aiRes, err = s.callOpenAIWithVision(ctx, userMsg, imagePaths)
+	} else {
+		aiRes, err = s.callOpenAI(ctx, userMsg)
+	}
 	if err != nil {
 		log.Warn().Err(err).Str("ticket_id", ticketID.String()).Msg("OpenAI failed, using deterministic enrichment only")
+
+		// Save processing time for deterministic-only path
+		processingMs := int(time.Since(startTime).Milliseconds())
+		preAI.ProcessingMs = &processingMs
+		_ = s.ticketRepo.UpsertAI(ctx, preAI)
 
 		// Route with deterministic data (fallback)
 		if preResult.Type != "Спам" {
@@ -155,7 +186,7 @@ func (s *AIService) EnrichTicket(ctx context.Context, ticketID uuid.UUID) error 
 			_ = s.ticketRepo.UpdateStatus(ctx, ticketID, "routed")
 		}
 
-		log.Info().Str("ticket_id", ticketID.String()).Str("type", preResult.Type).Str("mode", "deterministic_only").Msg("enrichment complete (AI fallback)")
+		log.Info().Str("ticket_id", ticketID.String()).Str("type", preResult.Type).Str("mode", "deterministic_only").Int("processing_ms", processingMs).Msg("enrichment complete (AI fallback)")
 		return nil
 	}
 
@@ -173,6 +204,7 @@ func (s *AIService) EnrichTicket(ctx context.Context, ticketID uuid.UUID) error 
 		lat, lon, geoStatus = s.resolveGeo(ctx, *geoCity)
 	}
 
+	processingMs := int(time.Since(startTime).Milliseconds())
 	mergedActionsJSON, _ := json.Marshal(merged.RecommendedActions)
 	mergedAI := &domain.TicketAI{
 		ID:                  aiID,
@@ -189,6 +221,7 @@ func (s *AIService) EnrichTicket(ctx context.Context, ticketID uuid.UUID) error 
 		ConfidenceType:      &merged.ConfidenceType,
 		ConfidenceSentiment: &merged.ConfidenceSentiment,
 		ConfidencePriority:  &merged.ConfidencePriority,
+		ProcessingMs:        &processingMs,
 		EnrichedAt:          &now,
 	}
 
@@ -205,7 +238,7 @@ func (s *AIService) EnrichTicket(ctx context.Context, ticketID uuid.UUID) error 
 		_ = s.ticketRepo.UpdateStatus(ctx, ticketID, "routed")
 	}
 
-	log.Info().Str("ticket_id", ticketID.String()).Str("type", merged.Type).Str("sentiment", merged.Sentiment).Str("mode", "hybrid").Msg("AI enrichment complete")
+	log.Info().Str("ticket_id", ticketID.String()).Str("type", merged.Type).Str("sentiment", merged.Sentiment).Int("processing_ms", processingMs).Str("mode", "hybrid").Msg("AI enrichment complete")
 	return nil
 }
 
@@ -357,4 +390,157 @@ func stripCodeFences(s string) string {
 		}
 	}
 	return s
+}
+
+// ── Vision API support ──
+
+// contentPart represents a part of a multimodal message content.
+type contentPart struct {
+	Type     string    `json:"type"`
+	Text     string    `json:"text,omitempty"`
+	ImageURL *imageURL `json:"image_url,omitempty"`
+}
+
+type imageURL struct {
+	URL string `json:"url"`
+}
+
+type openAIVisionMessage struct {
+	Role    string        `json:"role"`
+	Content interface{}   `json:"content"` // string for system, []contentPart for user
+}
+
+type openAIVisionRequest struct {
+	Model    string                `json:"model"`
+	Messages []openAIVisionMessage `json:"messages"`
+	MaxTokens int                  `json:"max_tokens,omitempty"`
+}
+
+// callOpenAIWithVision sends text + images to OpenAI Vision API.
+func (s *AIService) callOpenAIWithVision(ctx context.Context, userMessage string, imagePaths []string) (*aiResult, error) {
+	parts := []contentPart{
+		{Type: "text", Text: userMessage + "\n\nВНИМАНИЕ: К обращению приложены изображения. Проанализируй их содержимое и учти при классификации. Если на изображении видна ошибка/скриншот проблемы — тип 'Неработоспособность'. Если документ — учти контекст."},
+	}
+
+	for _, imgPath := range imagePaths {
+		dataURI, err := loadImageAsBase64(imgPath)
+		if err != nil {
+			log.Warn().Err(err).Str("path", imgPath).Msg("failed to load image, skipping")
+			continue
+		}
+		parts = append(parts, contentPart{
+			Type:     "image_url",
+			ImageURL: &imageURL{URL: dataURI},
+		})
+	}
+
+	reqBody := openAIVisionRequest{
+		Model: s.model,
+		Messages: []openAIVisionMessage{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: parts},
+		},
+		MaxTokens: 1000,
+	}
+
+	bodyBytes, _ := json.Marshal(reqBody)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.openai.com/v1/chat/completions", bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+s.apiKey)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("OpenAI Vision API status %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var openAIResp openAIResponse
+	if err := json.Unmarshal(respBytes, &openAIResp); err != nil {
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+
+	if openAIResp.Error != nil {
+		return nil, fmt.Errorf("OpenAI error: %s", openAIResp.Error.Message)
+	}
+
+	if len(openAIResp.Choices) == 0 {
+		return nil, fmt.Errorf("no choices in response")
+	}
+
+	content := stripCodeFences(openAIResp.Choices[0].Message.Content)
+
+	var result aiResult
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		return nil, fmt.Errorf("parse AI JSON: %w (raw: %s)", err, content)
+	}
+
+	if result.Priority110 < 1 {
+		result.Priority110 = 1
+	}
+	if result.Priority110 > 10 {
+		result.Priority110 = 10
+	}
+
+	return &result, nil
+}
+
+// resolveImagePaths parses comma-separated attachment filenames and returns paths to existing image files.
+func (s *AIService) resolveImagePaths(attachments *string) []string {
+	if attachments == nil || *attachments == "" || s.imagesDir == "" {
+		return nil
+	}
+
+	imageExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true, ".bmp": true}
+	var paths []string
+
+	for _, name := range strings.Split(*attachments, ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(name))
+		if !imageExts[ext] {
+			continue
+		}
+		fullPath := filepath.Join(s.imagesDir, name)
+		if _, err := os.Stat(fullPath); err == nil {
+			paths = append(paths, fullPath)
+		}
+	}
+
+	return paths
+}
+
+// loadImageAsBase64 reads an image file and returns a data URI for the OpenAI Vision API.
+func loadImageAsBase64(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	ext := strings.ToLower(filepath.Ext(path))
+	mimeType := "image/jpeg"
+	switch ext {
+	case ".png":
+		mimeType = "image/png"
+	case ".gif":
+		mimeType = "image/gif"
+	case ".webp":
+		mimeType = "image/webp"
+	case ".bmp":
+		mimeType = "image/bmp"
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(data)
+	return fmt.Sprintf("data:%s;base64,%s", mimeType, encoded), nil
 }

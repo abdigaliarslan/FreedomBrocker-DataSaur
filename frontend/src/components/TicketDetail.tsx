@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Sparkles, User, MapPin, Clock, Loader2, AlertCircle, ChevronRight, ShieldAlert } from 'lucide-react';
+import { X, Sparkles, User, MapPin, Clock, Loader2, AlertCircle, ChevronRight, ShieldAlert, Zap, Image } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fetchTicketDetail, enrichTicket, updateTicketStatus } from '@/api/tickets';
 import type { TicketWithDetails } from '@/types/models';
@@ -113,6 +113,11 @@ export default function TicketDetail({ ticketId, onClose, onChanged }: Props) {
                                     <MapPin className="w-3.5 h-3.5 text-primary" /> {t.raw_address}
                                 </div>
                             )}
+                            {t.attachments && (
+                                <div className="flex items-center gap-1.5 mt-2 text-[12px] text-muted-foreground">
+                                    <Image className="w-3.5 h-3.5 text-primary" /> Вложения: {t.attachments}
+                                </div>
+                            )}
                         </div>
 
                         {/* Status */}
@@ -150,6 +155,16 @@ export default function TicketDetail({ ticketId, onClose, onChanged }: Props) {
                             <div className="rounded-xl border border-border p-4 space-y-3 bg-gradient-to-br from-primary/[0.03] to-transparent">
                                 <div className="flex items-center gap-2 text-[13px] font-bold text-foreground">
                                     <Sparkles className="w-4 h-4 text-primary" /> AI-обогащение
+                                    {ai.processing_ms != null && (
+                                        <span className={cn(
+                                            "ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold",
+                                            ai.processing_ms < 1000 ? "bg-emerald-100 text-emerald-700" :
+                                            ai.processing_ms < 5000 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                                        )}>
+                                            <Zap className="w-3 h-3" />
+                                            {ai.processing_ms < 1000 ? `${ai.processing_ms}ms` : `${(ai.processing_ms / 1000).toFixed(1)}s`}
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="grid grid-cols-3 gap-2">
                                     {ai.type && (

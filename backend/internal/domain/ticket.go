@@ -17,6 +17,7 @@ type Ticket struct {
 	SourceChannel *string    `json:"source_channel" db:"source_channel"`
 	Status        string     `json:"status" db:"status"`
 	RawAddress    *string    `json:"raw_address" db:"raw_address"`
+	Attachments   *string    `json:"attachments" db:"attachments"`
 	ManagerID     *uuid.UUID `json:"manager_id,omitempty" db:"manager_id"`
 	OfficeID      *uuid.UUID `json:"office_id,omitempty" db:"office_id"`
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
@@ -38,6 +39,7 @@ type TicketAI struct {
 	ConfidenceType      *float64   `json:"confidence_type" db:"confidence_type"`
 	ConfidenceSentiment *float64   `json:"confidence_sentiment" db:"confidence_sentiment"`
 	ConfidencePriority  *float64   `json:"confidence_priority" db:"confidence_priority"`
+	ProcessingMs        *int       `json:"processing_ms" db:"processing_ms"`
 	EnrichedAt          *time.Time `json:"enriched_at" db:"enriched_at"`
 	CreatedAt           time.Time  `json:"created_at" db:"created_at"`
 }

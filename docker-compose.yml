@@ -28,8 +28,11 @@ services:
       OPENAI_API_KEY: "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"
       OPENAI_MODEL: "gpt-4.1-mini"
       CORS_ORIGINS: "http://178.88.115.213"
+      IMAGES_DIR: "/app/images"
     ports:
       - "8080:8080"
+    volumes:
+      - ./images:/app/images
     depends_on:
       postgres:
         condition: service_healthy

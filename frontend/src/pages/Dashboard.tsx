@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Ticket, Users, Building2, Sparkles, TrendingUp, TrendingDown, Activity, Clock, ArrowRight, Crown, MapPinOff } from 'lucide-react';
+import { Ticket, Users, Building2, Sparkles, TrendingUp, TrendingDown, Activity, Clock, ArrowRight, Crown, MapPinOff, Zap } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { fetchStats, fetchSentiment, fetchTimeline, fetchCategories, fetchManagerLoad } from '@/api/dashboard';
@@ -105,6 +105,17 @@ export default function DashboardPage() {
             value: statsData?.unknown_geo_count?.toString() || '0',
             change: '', up: true,
             color: 'bg-[linear-gradient(135deg,#EF4444,#DC2626)]',
+        },
+        {
+            icon: Zap, label: 'Скорость AI',
+            value: statsData?.avg_processing_ms
+                ? statsData.avg_processing_ms < 1000
+                    ? `${Math.round(statsData.avg_processing_ms)}ms`
+                    : `${(statsData.avg_processing_ms / 1000).toFixed(1)}s`
+                : '—',
+            change: statsData?.avg_processing_ms && statsData.avg_processing_ms < 1000 ? 'Отлично' : '',
+            up: true,
+            color: 'bg-[linear-gradient(135deg,#06B6D4,#0891B2)]',
         },
     ];
 

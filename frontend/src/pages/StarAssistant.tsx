@@ -1,18 +1,86 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot } from 'lucide-react';
+import { Send, Bot, Sparkles } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { queryStar } from '@/api/star';
+import BarChart from '@/components/charts/BarChart';
+import DonutChart from '@/components/charts/DonutChart';
+
+const CHART_COLORS = ['#00C853', '#00BFA5', '#2979FF', '#FF6D00', '#AA00FF', '#F50057', '#FFD600', '#00B8D4'];
+
+interface ChartData {
+    type: string;
+    columns: string[];
+    rows: (string | number)[][];
+    xLabel?: string;
+    yLabel?: string;
+}
 
 interface Message {
     from: 'bot' | 'user';
     text: string;
     time: string;
+    chartData?: ChartData;
+    sql?: string;
+}
+
+function renderChart(data: ChartData) {
+    if (data.type === 'number' && data.rows.length > 0) {
+        const value = data.rows[0][data.rows[0].length - 1];
+        return (
+            <div className="flex flex-col items-center py-6">
+                <span className="text-5xl font-black text-primary">{typeof value === 'number' ? Math.round(value * 100) / 100 : value}</span>
+                {data.columns.length > 0 && <span className="text-[12px] text-muted-foreground mt-2 font-bold uppercase">{data.columns[data.columns.length - 1]}</span>}
+            </div>
+        );
+    }
+
+    if (data.type === 'bar') {
+        const items = data.rows.map((r, i) => ({
+            label: String(r[0]),
+            value: Number(r[1]) || 0,
+            color: CHART_COLORS[i % CHART_COLORS.length],
+        }));
+        return <BarChart data={items} />;
+    }
+
+    if (data.type === 'pie') {
+        const segments = data.rows.map((r, i) => ({
+            label: String(r[0]),
+            value: Number(r[1]) || 0,
+            color: CHART_COLORS[i % CHART_COLORS.length],
+        }));
+        return <DonutChart data={segments} />;
+    }
+
+    // Default: table
+    return (
+        <div className="overflow-x-auto">
+            <table className="w-full text-[12px]">
+                <thead>
+                    <tr className="border-b border-border">
+                        {data.columns.map((col, i) => (
+                            <th key={i} className="py-2 px-3 text-left font-bold text-muted-foreground uppercase tracking-wider">{col}</th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {data.rows.map((row, i) => (
+                        <tr key={i} className="border-b border-border/30 hover:bg-background/50">
+                            {row.map((cell, j) => (
+                                <td key={j} className="py-2 px-3 font-medium">{cell != null ? String(cell) : '—'}</td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
 }
 
 export default function StarAssistantPage() {
     const [messages, setMessages] = useState<Message[]>([
-        { from: 'bot', text: 'Привет! Я Star Assistant — ваш AI-помощник. Я могу помочь с анализом тикетов, маршрутизацией, обогащением данных и ответами на вопросы. Чем могу помочь?', time: '16:00' },
+        { from: 'bot', text: 'Привет! Я Star Assistant — AI-аналитик Freedom Broker. Задайте вопрос о тикетах, менеджерах или офисах — я сгенерирую SQL-запрос и покажу результат с графиком.', time: '—' },
     ]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -37,10 +105,19 @@ export default function StarAssistantPage() {
 
         try {
             const response = await queryStar(input);
+            const botTime = `${new Date().getHours()}:${String(new Date().getMinutes()).padStart(2, '0')}`;
             const botMsg: Message = {
                 from: 'bot',
-                text: response.answer || 'Извините, я не смог обработать ваш запрос.',
-                time: `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`
+                text: response.answer_text || 'Готово!',
+                time: botTime,
+                sql: response.sql,
+                chartData: response.rows && response.rows.length > 0 ? {
+                    type: response.chart_type || 'table',
+                    columns: response.columns || [],
+                    rows: response.rows,
+                    xLabel: response.x_label,
+                    yLabel: response.y_label,
+                } : undefined,
             };
             setMessages(prev => [...prev, botMsg]);
         } catch (error) {
@@ -48,7 +125,7 @@ export default function StarAssistantPage() {
             const botMsg: Message = {
                 from: 'bot',
                 text: 'Произошла ошибка при связи с AI-ядром. Попробуйте позже.',
-                time: `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`
+                time: `${new Date().getHours()}:${String(new Date().getMinutes()).padStart(2, '0')}`
             };
             setMessages(prev => [...prev, botMsg]);
         } finally {
@@ -57,10 +134,12 @@ export default function StarAssistantPage() {
     };
 
     const suggestions = [
-        'Покажи распределение VIP клиентов по офисам',
-        'Средний приоритет обращений по городам',
+        'Распределение тикетов по типам',
+        'Средний приоритет обращений по офисам',
         'Сколько тикетов типа Спам?',
         'Топ-5 менеджеров по нагрузке',
+        'Распределение VIP клиентов по городам',
+        'Среднее время обработки AI',
     ];
 
     return (
@@ -69,7 +148,7 @@ export default function StarAssistantPage() {
             <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-6 scrollbar-thin">
                 {messages.map((m, i) => (
                     <div key={i} className={cn(
-                        "max-w-[80%] flex flex-col gap-1.5 animate-fade-in-up",
+                        "max-w-[85%] flex flex-col gap-1.5 animate-fade-in-up",
                         m.from === 'user' ? "self-end items-end" : "self-start items-start"
                     )}>
                         <div className={cn(
@@ -81,6 +160,19 @@ export default function StarAssistantPage() {
                             {m.text.split('\n').map((line, j) => (
                                 <p key={j} className={j > 0 ? "mt-2" : ""}>{line}</p>
                             ))}
+                            {m.chartData && (
+                                <div className="mt-4 bg-white rounded-lg border border-border/50 p-4">
+                                    {renderChart(m.chartData)}
+                                </div>
+                            )}
+                            {m.sql && (
+                                <details className="mt-3">
+                                    <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-primary font-bold uppercase tracking-wider flex items-center gap-1">
+                                        <Sparkles className="w-3 h-3" /> SQL запрос
+                                    </summary>
+                                    <pre className="mt-2 text-[11px] bg-sidebar text-white rounded-lg p-3 overflow-x-auto font-mono">{m.sql}</pre>
+                                </details>
+                            )}
                         </div>
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest px-1">{m.time}</span>
                     </div>
@@ -114,7 +206,7 @@ export default function StarAssistantPage() {
                         <Bot className="w-5 h-5 text-primary" />
                         <input
                             type="text"
-                            placeholder="Спросите что-нибудь у AI..."
+                            placeholder="Задайте вопрос об аналитике..."
                             value={input}
                             onChange={e => setInput(e.target.value)}
                             onKeyDown={e => e.key === 'Enter' && handleSend()}

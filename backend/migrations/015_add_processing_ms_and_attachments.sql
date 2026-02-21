@@ -1,0 +1,2 @@
+ALTER TABLE ticket_ai ADD COLUMN IF NOT EXISTS processing_ms INT;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS attachments TEXT;

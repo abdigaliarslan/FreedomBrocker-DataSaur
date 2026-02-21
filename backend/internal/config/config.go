@@ -9,6 +9,7 @@ type Config struct {
 	OpenAIModel   string `envconfig:"OPENAI_MODEL" default:"gpt-4.1-mini"`
 	CORSOrigins   string `envconfig:"CORS_ORIGINS" default:"http://localhost:5173"`
 	MigrationsDir string `envconfig:"MIGRATIONS_DIR" default:"migrations"`
+	ImagesDir     string `envconfig:"IMAGES_DIR" default:"images"`
 }
 
 func Load() (*Config, error) {
