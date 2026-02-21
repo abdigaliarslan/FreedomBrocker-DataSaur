@@ -35,7 +35,13 @@ func (r *TicketRepo) BulkInsert(ctx context.Context, tickets []domain.Ticket) (i
 		batch.Queue(
 			`INSERT INTO tickets (id, external_id, subject, body, client_name, client_segment, source_channel, status, raw_address)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			 ON CONFLICT (external_id) DO NOTHING`,
+			 ON CONFLICT (external_id) DO UPDATE SET
+			   subject = EXCLUDED.subject,
+			   body = EXCLUDED.body,
+			   client_name = EXCLUDED.client_name,
+			   client_segment = EXCLUDED.client_segment,
+			   source_channel = EXCLUDED.source_channel,
+			   raw_address = EXCLUDED.raw_address`,
 			t.ID, t.ExternalID, t.Subject, t.Body, t.ClientName, t.ClientSegment, t.SourceChannel, t.Status, t.RawAddress,
 		)
 	}

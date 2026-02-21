@@ -34,7 +34,9 @@ func (r *BusinessUnitRepo) BulkInsert(ctx context.Context, units []domain.Busine
 		batch.Queue(
 			`INSERT INTO business_units (id, name, city, address, lat, lon)
 			 VALUES ($1, $2, $3, $4, $5, $6)
-			 ON CONFLICT (name) DO NOTHING`,
+			 ON CONFLICT (name) DO UPDATE SET
+			   city = EXCLUDED.city,
+			   address = EXCLUDED.address`,
 			bu.ID, bu.Name, bu.City, bu.Address, bu.Lat, bu.Lon,
 		)
 	}

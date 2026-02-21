@@ -33,7 +33,13 @@ func (r *ManagerRepo) BulkInsert(ctx context.Context, managers []domain.Manager)
 		batch.Queue(
 			`INSERT INTO managers (id, full_name, email, business_unit_id, is_vip_skill, is_chief_spec, languages, max_load, current_load, is_active)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			 ON CONFLICT (email) DO NOTHING`,
+			 ON CONFLICT (email) DO UPDATE SET
+			   full_name = EXCLUDED.full_name,
+			   business_unit_id = EXCLUDED.business_unit_id,
+			   is_vip_skill = EXCLUDED.is_vip_skill,
+			   is_chief_spec = EXCLUDED.is_chief_spec,
+			   languages = EXCLUDED.languages,
+			   current_load = EXCLUDED.current_load`,
 			m.ID, m.FullName, m.Email, m.BusinessUnitID, m.IsVIPSkill, m.IsChiefSpec, m.Languages, m.MaxLoad, m.CurrentLoad, m.IsActive,
 		)
 	}

@@ -144,7 +144,7 @@ export default function ImportPage() {
                                     <div className="flex items-center gap-3 mt-1 text-[11px] font-bold text-muted-foreground uppercase tracking-tighter">
                                         {r.status === 'success' ? (
                                             <>
-                                                <span className="text-success">{r.rows} из {r.total} записей импортировано</span>
+                                                <span className="text-success">{r.total} записей обработано</span>
                                                 <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
                                                 <span>{r.time}</span>
                                             </>
