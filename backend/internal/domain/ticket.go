@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,7 +31,7 @@ type TicketAI struct {
 	Priority110         *int       `json:"priority_1_10" db:"priority_1_10"`
 	Lang                string     `json:"lang" db:"lang"`
 	Summary             *string    `json:"summary" db:"summary"`
-	RecommendedActions  []byte     `json:"recommended_actions" db:"recommended_actions"`
+	RecommendedActions  json.RawMessage `json:"recommended_actions" db:"recommended_actions"`
 	Lat                 *float64   `json:"lat" db:"lat"`
 	Lon                 *float64   `json:"lon" db:"lon"`
 	GeoStatus           string     `json:"geo_status" db:"geo_status"`
