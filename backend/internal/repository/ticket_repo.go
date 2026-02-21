@@ -63,11 +63,15 @@ func (r *TicketRepo) BulkInsert(ctx context.Context, tickets []domain.Ticket) ([
 
 func (r *TicketRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Ticket, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT id, external_id, subject, body, client_name, client_segment, source_channel, status, raw_address, created_at, updated_at
-		 FROM tickets WHERE id = $1`, id)
+		`SELECT t.id, t.external_id, t.subject, t.body, t.client_name, t.client_segment, t.source_channel, t.status, t.raw_address, t.created_at, t.updated_at,
+		        a.manager_id, a.office_id
+		 FROM tickets t
+		 LEFT JOIN ticket_assignment a ON a.ticket_id = t.id AND a.is_current = true
+		 WHERE t.id = $1`, id)
 
 	var t domain.Ticket
-	err := row.Scan(&t.ID, &t.ExternalID, &t.Subject, &t.Body, &t.ClientName, &t.ClientSegment, &t.SourceChannel, &t.Status, &t.RawAddress, &t.CreatedAt, &t.UpdatedAt)
+	err := row.Scan(&t.ID, &t.ExternalID, &t.Subject, &t.Body, &t.ClientName, &t.ClientSegment, &t.SourceChannel, &t.Status, &t.RawAddress, &t.CreatedAt, &t.UpdatedAt,
+		&t.ManagerID, &t.OfficeID)
 	if err != nil {
 		return nil, err
 	}
@@ -116,8 +120,11 @@ func (r *TicketRepo) List(ctx context.Context, f domain.TicketListFilter) ([]dom
 	offset := (f.Page - 1) * f.PerPage
 
 	query := fmt.Sprintf(
-		`SELECT t.id, t.external_id, t.subject, t.body, t.client_name, t.client_segment, t.source_channel, t.status, t.raw_address, t.created_at, t.updated_at
-		 FROM tickets t %s
+		`SELECT t.id, t.external_id, t.subject, t.body, t.client_name, t.client_segment, t.source_channel, t.status, t.raw_address, t.created_at, t.updated_at,
+		        a.manager_id, a.office_id
+		 FROM tickets t
+		 LEFT JOIN ticket_assignment a ON a.ticket_id = t.id AND a.is_current = true
+		 %s
 		 ORDER BY t.created_at DESC
 		 LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
 	args = append(args, f.PerPage, offset)
@@ -131,7 +138,8 @@ func (r *TicketRepo) List(ctx context.Context, f domain.TicketListFilter) ([]dom
 	tickets := []domain.Ticket{}
 	for rows.Next() {
 		var t domain.Ticket
-		if err := rows.Scan(&t.ID, &t.ExternalID, &t.Subject, &t.Body, &t.ClientName, &t.ClientSegment, &t.SourceChannel, &t.Status, &t.RawAddress, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.ExternalID, &t.Subject, &t.Body, &t.ClientName, &t.ClientSegment, &t.SourceChannel, &t.Status, &t.RawAddress, &t.CreatedAt, &t.UpdatedAt,
+			&t.ManagerID, &t.OfficeID); err != nil {
 			return nil, 0, err
 		}
 		tickets = append(tickets, t)

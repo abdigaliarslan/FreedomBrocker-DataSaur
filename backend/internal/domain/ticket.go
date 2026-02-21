@@ -16,6 +16,8 @@ type Ticket struct {
 	SourceChannel *string    `json:"source_channel" db:"source_channel"`
 	Status        string     `json:"status" db:"status"`
 	RawAddress    *string    `json:"raw_address" db:"raw_address"`
+	ManagerID     *uuid.UUID `json:"manager_id,omitempty" db:"manager_id"`
+	OfficeID      *uuid.UUID `json:"office_id,omitempty" db:"office_id"`
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
 }
