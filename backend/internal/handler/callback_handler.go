@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	"github.com/arslan/fire-challenge/internal/domain"
 	"github.com/arslan/fire-challenge/internal/repository"
@@ -13,12 +14,13 @@ import (
 )
 
 type CallbackHandler struct {
-	ticketRepo *repository.TicketRepo
-	routingSvc *service.RoutingService
+	ticketRepo     *repository.TicketRepo
+	assignmentRepo *repository.AssignmentRepo
+	routingSvc     *service.RoutingService
 }
 
-func NewCallbackHandler(tr *repository.TicketRepo, rs *service.RoutingService) *CallbackHandler {
-	return &CallbackHandler{ticketRepo: tr, routingSvc: rs}
+func NewCallbackHandler(tr *repository.TicketRepo, ar *repository.AssignmentRepo, rs *service.RoutingService) *CallbackHandler {
+	return &CallbackHandler{ticketRepo: tr, assignmentRepo: ar, routingSvc: rs}
 }
 
 func (h *CallbackHandler) HandleEnrichment(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +39,7 @@ func (h *CallbackHandler) HandleEnrichment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Save AI enrichment
+	// Save AI enrichment (ON CONFLICT updates if n8n already inserted)
 	now := time.Now()
 	actionsJSON, _ := json.Marshal(req.RecommendedActions)
 
@@ -69,15 +71,24 @@ func (h *CallbackHandler) HandleEnrichment(w http.ResponseWriter, r *http.Reques
 		RespondError(w, http.StatusInternalServerError, "update status: "+err.Error())
 		return
 	}
-	// Broadcast enriched
 	GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: req.TicketID.String(), Status: "enriched"})
 
-	// Run routing engine
-	if err := h.routingSvc.RouteTicket(ctx, ticket, ai); err != nil {
-		RespondError(w, http.StatusInternalServerError, "routing: "+err.Error())
-		return
+	// Check if n8n already assigned via direct SQL
+	existing, _ := h.assignmentRepo.GetByTicketID(ctx, req.TicketID)
+	if existing != nil {
+		// n8n already routed — just update status and broadcast
+		log.Info().Str("ticket_id", req.TicketID.String()).Msg("n8n already assigned, skipping routing")
+		if err := h.ticketRepo.UpdateStatus(ctx, req.TicketID, "routed"); err != nil {
+			RespondError(w, http.StatusInternalServerError, "update status: "+err.Error())
+			return
+		}
+	} else {
+		// No assignment yet — run full routing pipeline (fallback)
+		if err := h.routingSvc.RouteTicket(ctx, ticket, ai); err != nil {
+			RespondError(w, http.StatusInternalServerError, "routing: "+err.Error())
+			return
+		}
 	}
-	// Broadcast routed
 	GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: req.TicketID.String(), Status: "routed"})
 
 	RespondOK(w, map[string]interface{}{

@@ -41,7 +41,7 @@ func (s *DashboardService) Stats(ctx context.Context) (*DashboardStats, error) {
 	s.pool.QueryRow(ctx, `SELECT COALESCE(AVG(priority_1_10), 0) FROM ticket_ai`).Scan(&stats.AvgPriority)
 	s.pool.QueryRow(ctx, `SELECT COALESCE(AVG(confidence_type), 0) FROM ticket_ai`).Scan(&stats.AvgConfidence)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM tickets WHERE client_segment = 'VIP'`).Scan(&stats.VIPCount)
-	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM ticket_ai WHERE geo_status = 'unknown'`).Scan(&stats.UnknownGeoCount)
+	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM ticket_ai WHERE geo_status IN ('unknown', 'NOT_FOUND', 'NO_ADDRESS', 'pending')`).Scan(&stats.UnknownGeoCount)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM managers WHERE is_active = true`).Scan(&stats.ActiveManagers)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM business_units`).Scan(&stats.TotalOffices)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM ticket_ai`).Scan(&stats.AIProcessedCount)

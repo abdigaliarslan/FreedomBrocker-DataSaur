@@ -15,10 +15,12 @@ type TicketService struct {
 	ticketRepo     *repository.TicketRepo
 	assignmentRepo *repository.AssignmentRepo
 	auditRepo      *repository.AuditRepo
+	managerRepo    *repository.ManagerRepo
+	buRepo         *repository.BusinessUnitRepo
 }
 
-func NewTicketService(tr *repository.TicketRepo, ar *repository.AssignmentRepo, audit *repository.AuditRepo) *TicketService {
-	return &TicketService{ticketRepo: tr, assignmentRepo: ar, auditRepo: audit}
+func NewTicketService(tr *repository.TicketRepo, ar *repository.AssignmentRepo, audit *repository.AuditRepo, mr *repository.ManagerRepo, br *repository.BusinessUnitRepo) *TicketService {
+	return &TicketService{ticketRepo: tr, assignmentRepo: ar, auditRepo: audit, managerRepo: mr, buRepo: br}
 }
 
 func (s *TicketService) List(ctx context.Context, filter domain.TicketListFilter) ([]domain.Ticket, int, error) {
@@ -46,6 +48,23 @@ func (s *TicketService) GetWithDetails(ctx context.Context, id uuid.UUID) (*doma
 		return nil, err
 	}
 	result.Assignment = assignment
+
+	// Populate assigned manager details
+	if assignment != nil {
+		manager, err := s.managerRepo.GetByID(ctx, assignment.ManagerID)
+		if err == nil {
+			mwo := &domain.ManagerWithOffice{Manager: *manager}
+			bu, err := s.buRepo.GetByID(ctx, manager.BusinessUnitID)
+			if err == nil {
+				mwo.OfficeName = bu.Name
+				mwo.OfficeCity = bu.City
+			}
+			if manager.MaxLoad > 0 {
+				mwo.Utilization = float64(manager.CurrentLoad) / float64(manager.MaxLoad) * 100
+			}
+			result.Manager = mwo
+		}
+	}
 
 	// Audit trail
 	audit, err := s.auditRepo.ListByTicketID(ctx, id)

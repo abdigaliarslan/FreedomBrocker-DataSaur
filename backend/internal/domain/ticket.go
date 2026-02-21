@@ -56,7 +56,7 @@ type TicketWithDetails struct {
 	Ticket     Ticket            `json:"ticket"`
 	AI         *TicketAI         `json:"ai"`
 	Assignment *TicketAssignment `json:"assignment"`
-	Manager    *Manager          `json:"assigned_manager"`
+	Manager    *ManagerWithOffice `json:"assigned_manager"`
 	AuditTrail []AuditLog        `json:"audit_trail"`
 }
 

@@ -63,14 +63,14 @@ func main() {
 	// Services
 	importSvc := service.NewImportService(ticketRepo, managerRepo, buRepo)
 	routingSvc := service.NewRoutingService(pool, geoFilter, skillFilter, loadBalancer, roundRobin, managerRepo, auditRepo, ticketRepo)
-	ticketSvc := service.NewTicketService(ticketRepo, assignmentRepo, auditRepo)
+	ticketSvc := service.NewTicketService(ticketRepo, assignmentRepo, auditRepo, managerRepo, buRepo)
 	managerSvc := service.NewManagerService(managerRepo, buRepo)
 	dashboardSvc := service.NewDashboardService(pool)
 	starSvc := service.NewStarService(pool, cfg.N8NWebhookURL)
 
 	// Handlers
 	importH := handler.NewImportHandler(importSvc, cfg.N8NWebhookURL)
-	callbackH := handler.NewCallbackHandler(ticketRepo, routingSvc)
+	callbackH := handler.NewCallbackHandler(ticketRepo, assignmentRepo, routingSvc)
 	ticketH := handler.NewTicketHandler(ticketSvc, cfg.N8NWebhookURL)
 	managerH := handler.NewManagerHandler(managerSvc)
 	dashboardH := handler.NewDashboardHandler(dashboardSvc)
