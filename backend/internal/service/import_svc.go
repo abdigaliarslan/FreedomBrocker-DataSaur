@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -14,9 +15,9 @@ import (
 )
 
 type ImportService struct {
-	ticketRepo *repository.TicketRepo
+	ticketRepo  *repository.TicketRepo
 	managerRepo *repository.ManagerRepo
-	buRepo     *repository.BusinessUnitRepo
+	buRepo      *repository.BusinessUnitRepo
 }
 
 func NewImportService(tr *repository.TicketRepo, mr *repository.ManagerRepo, br *repository.BusinessUnitRepo) *ImportService {
@@ -27,6 +28,49 @@ type ImportResult struct {
 	Imported int      `json:"imported"`
 	Skipped  int      `json:"skipped"`
 	Errors   []string `json:"errors"`
+}
+
+// mapColumns maps both English and Russian CSV headers to canonical internal keys.
+func mapColumns(header []string) map[string]int {
+	aliases := map[string]string{
+		// Business units (Russian)
+		"офис":  "name",
+		"адрес": "address",
+		// Managers (Russian)
+		"фио":                           "full_name",
+		"должность":                     "position",
+		"навыки":                        "skills",
+		"количество обращений в работе": "current_load",
+		// Tickets (Russian)
+		"guid клиента":     "external_id",
+		"пол клиента":      "gender",
+		"дата рождения":    "birth_date",
+		"описание":         "body",
+		"вложения":         "attachments",
+		"сегмент клиента":  "client_segment",
+		"страна":           "country",
+		"область":          "region",
+		"населённый пункт": "city",
+		"улица":            "street",
+		"дом":              "house",
+	}
+
+	m := make(map[string]int)
+	for i, col := range header {
+		key := strings.TrimSpace(strings.ToLower(col))
+		if alias, ok := aliases[key]; ok {
+			m[alias] = i
+		}
+		m[key] = i
+	}
+	return m
+}
+
+func getCol(record []string, colIdx map[string]int, key string) string {
+	if idx, ok := colIdx[key]; ok && idx < len(record) {
+		return strings.TrimSpace(record[idx])
+	}
+	return ""
 }
 
 func (s *ImportService) ImportTickets(ctx context.Context, r io.Reader) (*ImportResult, error) {
@@ -58,37 +102,64 @@ func (s *ImportService) ImportTickets(ctx context.Context, r io.Reader) (*Import
 			Status: "new",
 		}
 
-		if idx, ok := colIdx["external_id"]; ok && idx < len(record) {
-			v := strings.TrimSpace(record[idx])
+		// External ID
+		if v := getCol(record, colIdx, "external_id"); v != "" {
 			t.ExternalID = &v
 		}
-		if idx, ok := colIdx["subject"]; ok && idx < len(record) {
-			t.Subject = strings.TrimSpace(record[idx])
-		}
-		if idx, ok := colIdx["body"]; ok && idx < len(record) {
-			t.Body = strings.TrimSpace(record[idx])
-		}
-		if idx, ok := colIdx["client_name"]; ok && idx < len(record) {
-			v := strings.TrimSpace(record[idx])
-			t.ClientName = &v
-		}
-		if idx, ok := colIdx["client_segment"]; ok && idx < len(record) {
-			v := strings.TrimSpace(record[idx])
-			t.ClientSegment = &v
-		}
-		if idx, ok := colIdx["source_channel"]; ok && idx < len(record) {
-			v := strings.TrimSpace(record[idx])
-			t.SourceChannel = &v
-		}
-		if idx, ok := colIdx["raw_address"]; ok && idx < len(record) {
-			v := strings.TrimSpace(record[idx])
-			t.RawAddress = &v
+
+		// Body
+		t.Body = getCol(record, colIdx, "body")
+
+		// Subject — from column or generate from body
+		t.Subject = getCol(record, colIdx, "subject")
+		if t.Subject == "" && t.Body != "" {
+			t.Subject = generateSubject(t.Body)
 		}
 
-		if t.Subject == "" {
-			result.Errors = append(result.Errors, fmt.Sprintf("line %d: missing subject", lineNum))
-			result.Skipped++
-			continue
+		// Client segment
+		if v := getCol(record, colIdx, "client_segment"); v != "" {
+			t.ClientSegment = &v
+		}
+
+		// Client name
+		if v := getCol(record, colIdx, "client_name"); v != "" {
+			t.ClientName = &v
+		}
+
+		// Source channel
+		if v := getCol(record, colIdx, "source_channel"); v != "" {
+			t.SourceChannel = &v
+		} else {
+			ch := "email"
+			t.SourceChannel = &ch
+		}
+
+		// Raw address — from column or compose from individual fields
+		if v := getCol(record, colIdx, "raw_address"); v != "" {
+			t.RawAddress = &v
+		} else {
+			addr := composeAddress(
+				getCol(record, colIdx, "country"),
+				getCol(record, colIdx, "region"),
+				getCol(record, colIdx, "city"),
+				getCol(record, colIdx, "street"),
+				getCol(record, colIdx, "house"),
+			)
+			if addr != "" {
+				t.RawAddress = &addr
+			}
+		}
+
+		// Handle tickets with only attachments (no text body)
+		if t.Subject == "" && t.Body == "" {
+			if v := getCol(record, colIdx, "attachments"); v != "" {
+				t.Subject = "Вложение: " + v
+				t.Body = "Клиент отправил вложение: " + v
+			} else {
+				result.Errors = append(result.Errors, fmt.Sprintf("line %d: missing subject and body", lineNum))
+				result.Skipped++
+				continue
+			}
 		}
 
 		tickets = append(tickets, t)
@@ -118,6 +189,13 @@ func (s *ImportService) ImportManagers(ctx context.Context, r io.Reader) (*Impor
 
 	colIdx := mapColumns(header)
 	result := &ImportResult{}
+
+	// Build office name → UUID map from existing business units in DB
+	buMap, err := s.buildBusinessUnitMap(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load business units: %w", err)
+	}
+
 	var managers []domain.Manager
 
 	for lineNum := 2; ; lineNum++ {
@@ -136,42 +214,85 @@ func (s *ImportService) ImportManagers(ctx context.Context, r io.Reader) (*Impor
 			MaxLoad:  50,
 		}
 
-		if idx, ok := colIdx["full_name"]; ok && idx < len(record) {
-			m.FullName = strings.TrimSpace(record[idx])
+		// Full name
+		m.FullName = getCol(record, colIdx, "full_name")
+		if m.FullName == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("line %d: missing full_name", lineNum))
+			result.Skipped++
+			continue
 		}
-		if idx, ok := colIdx["email"]; ok && idx < len(record) {
-			v := strings.TrimSpace(record[idx])
+
+		// Email — from CSV or auto-generate
+		if v := getCol(record, colIdx, "email"); v != "" {
 			m.Email = &v
+		} else {
+			email := fmt.Sprintf("manager%d@freedom.kz", lineNum-1)
+			m.Email = &email
 		}
-		if idx, ok := colIdx["business_unit_id"]; ok && idx < len(record) {
-			buID, err := uuid.Parse(strings.TrimSpace(record[idx]))
+
+		// Business unit — from UUID column or look up by office name
+		if v := getCol(record, colIdx, "business_unit_id"); v != "" {
+			buID, err := uuid.Parse(v)
 			if err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("line %d: invalid business_unit_id", lineNum))
 				result.Skipped++
 				continue
 			}
 			m.BusinessUnitID = buID
+		} else if officeName := getCol(record, colIdx, "name"); officeName != "" {
+			// "Офис" column maps to "name" alias
+			buID, ok := buMap[officeName]
+			if !ok {
+				result.Errors = append(result.Errors, fmt.Sprintf("line %d: office '%s' not found in DB", lineNum, officeName))
+				result.Skipped++
+				continue
+			}
+			m.BusinessUnitID = buID
 		}
-		if idx, ok := colIdx["is_vip_skill"]; ok && idx < len(record) {
-			m.IsVIPSkill = strings.TrimSpace(strings.ToLower(record[idx])) == "true"
+
+		// Position (Должность) → is_chief_spec
+		if v := getCol(record, colIdx, "position"); v != "" {
+			m.IsChiefSpec = strings.Contains(strings.ToLower(v), "главный")
+		} else if v := getCol(record, colIdx, "is_chief_spec"); v != "" {
+			m.IsChiefSpec = strings.ToLower(v) == "true"
 		}
-		if idx, ok := colIdx["is_chief_spec"]; ok && idx < len(record) {
-			m.IsChiefSpec = strings.TrimSpace(strings.ToLower(record[idx])) == "true"
-		}
-		if idx, ok := colIdx["languages"]; ok && idx < len(record) {
-			langs := strings.Split(record[idx], ";")
-			for i := range langs {
-				langs[i] = strings.TrimSpace(langs[i])
+
+		// Skills (Навыки) → is_vip_skill + languages
+		if v := getCol(record, colIdx, "skills"); v != "" {
+			skills := strings.Split(v, ",")
+			langs := []string{"RU"}
+			for _, skill := range skills {
+				skill = strings.TrimSpace(strings.ToUpper(skill))
+				switch skill {
+				case "VIP":
+					m.IsVIPSkill = true
+				case "ENG":
+					langs = append(langs, "EN")
+				case "KZ":
+					langs = append(langs, "KZ")
+				}
 			}
 			m.Languages = langs
 		} else {
-			m.Languages = []string{"RU"}
+			if v := getCol(record, colIdx, "is_vip_skill"); v != "" {
+				m.IsVIPSkill = strings.ToLower(v) == "true"
+			}
+			if v := getCol(record, colIdx, "languages"); v != "" {
+				langs := strings.Split(v, ";")
+				for i := range langs {
+					langs[i] = strings.TrimSpace(langs[i])
+				}
+				m.Languages = langs
+			} else {
+				m.Languages = []string{"RU"}
+			}
 		}
 
-		if m.FullName == "" {
-			result.Errors = append(result.Errors, fmt.Sprintf("line %d: missing full_name", lineNum))
-			result.Skipped++
-			continue
+		// Current load (Количество обращений в работе)
+		if v := getCol(record, colIdx, "current_load"); v != "" {
+			if load, err := strconv.Atoi(v); err == nil {
+				m.CurrentLoad = load
+			}
 		}
 
 		managers = append(managers, m)
@@ -215,19 +336,22 @@ func (s *ImportService) ImportBusinessUnits(ctx context.Context, r io.Reader) (*
 
 		bu := domain.BusinessUnit{ID: uuid.New()}
 
-		if idx, ok := colIdx["name"]; ok && idx < len(record) {
-			bu.Name = strings.TrimSpace(record[idx])
+		// Name — from "name" key (maps from "Офис" alias)
+		bu.Name = getCol(record, colIdx, "name")
+
+		// City — from "city" key, or use office name (same for KZ offices)
+		bu.City = getCol(record, colIdx, "city")
+		if bu.City == "" {
+			bu.City = bu.Name
 		}
-		if idx, ok := colIdx["city"]; ok && idx < len(record) {
-			bu.City = strings.TrimSpace(record[idx])
-		}
-		if idx, ok := colIdx["address"]; ok && idx < len(record) {
-			v := strings.TrimSpace(record[idx])
+
+		// Address
+		if v := getCol(record, colIdx, "address"); v != "" {
 			bu.Address = &v
 		}
 
-		if bu.Name == "" || bu.City == "" {
-			result.Errors = append(result.Errors, fmt.Sprintf("line %d: missing name or city", lineNum))
+		if bu.Name == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("line %d: missing name", lineNum))
 			result.Skipped++
 			continue
 		}
@@ -247,10 +371,47 @@ func (s *ImportService) ImportBusinessUnits(ctx context.Context, r io.Reader) (*
 	return result, nil
 }
 
-func mapColumns(header []string) map[string]int {
-	m := make(map[string]int)
-	for i, col := range header {
-		m[strings.TrimSpace(strings.ToLower(col))] = i
+// buildBusinessUnitMap returns a map of office name/city → UUID for looking up
+// business_unit_id when importing managers by office name.
+func (s *ImportService) buildBusinessUnitMap(ctx context.Context) (map[string]uuid.UUID, error) {
+	units, err := s.buRepo.GetAll(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return m
+	m := make(map[string]uuid.UUID, len(units)*2)
+	for _, u := range units {
+		m[u.Name] = u.ID
+		if u.City != u.Name {
+			m[u.City] = u.ID
+		}
+	}
+	return m, nil
+}
+
+// generateSubject creates a short subject line from the first meaningful line of the body.
+func generateSubject(body string) string {
+	lines := strings.Split(body, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		runes := []rune(line)
+		if len(runes) > 100 {
+			return string(runes[:97]) + "..."
+		}
+		return line
+	}
+	return "Обращение клиента"
+}
+
+// composeAddress joins non-empty address parts with commas.
+func composeAddress(parts ...string) string {
+	var nonEmpty []string
+	for _, p := range parts {
+		if p != "" {
+			nonEmpty = append(nonEmpty, p)
+		}
+	}
+	return strings.Join(nonEmpty, ", ")
 }
