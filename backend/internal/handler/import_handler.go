@@ -41,6 +41,11 @@ func (h *ImportHandler) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Broadcast newly imported ticket IDs so frontend shows them live
+	for _, id := range result.ImportedIDs {
+		GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: id.String(), Status: "new"})
+	}
+
 	RespondOK(w, result)
 
 	// Trigger n8n for imported tickets

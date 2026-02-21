@@ -64,17 +64,21 @@ func (h *CallbackHandler) HandleEnrichment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Update ticket status
+	// Update ticket status to enriched
 	if err := h.ticketRepo.UpdateStatus(ctx, req.TicketID, "enriched"); err != nil {
 		RespondError(w, http.StatusInternalServerError, "update status: "+err.Error())
 		return
 	}
+	// Broadcast enriched
+	GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: req.TicketID.String(), Status: "enriched"})
 
 	// Run routing engine
 	if err := h.routingSvc.RouteTicket(ctx, ticket, ai); err != nil {
 		RespondError(w, http.StatusInternalServerError, "routing: "+err.Error())
 		return
 	}
+	// Broadcast routed
+	GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: req.TicketID.String(), Status: "routed"})
 
 	RespondOK(w, map[string]interface{}{
 		"status":    "ok",
@@ -84,11 +88,11 @@ func (h *CallbackHandler) HandleEnrichment(w http.ResponseWriter, r *http.Reques
 
 // StarQueryCallback is the result from n8n for Star Task.
 type StarQueryCallback struct {
-	SessionID      string `json:"session_id"`
-	Question       string `json:"question"`
-	GeneratedSQL   string `json:"generated_sql"`
+	SessionID       string `json:"session_id"`
+	Question        string `json:"question"`
+	GeneratedSQL    string `json:"generated_sql"`
 	ChartSuggestion string `json:"chart_suggestion"`
-	AnswerText     string `json:"answer_text"`
+	AnswerText      string `json:"answer_text"`
 }
 
 func (h *CallbackHandler) HandleStarQuery(w http.ResponseWriter, r *http.Request) {

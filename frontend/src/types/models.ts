@@ -2,7 +2,7 @@ export interface Ticket {
     id: string;
     subject: string;
     description: string;
-    status: 'open' | 'progress' | 'resolved' | 'closed' | 'routed';
+    status: 'new' | 'enriching' | 'enriched' | 'open' | 'progress' | 'resolved' | 'closed' | 'routed' | string;
     priority: 'low' | 'medium' | 'high';
     sentiment: 'positive' | 'neutral' | 'negative' | 'unknown';
     segment: string;

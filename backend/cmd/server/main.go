@@ -126,6 +126,9 @@ func main() {
 
 		// Star Task
 		r.Post("/star/query", starH.Query)
+
+		// Real-time SSE events stream
+		r.Get("/events", handler.ServeWS)
 	})
 
 	addr := fmt.Sprintf(":%s", cfg.Port)

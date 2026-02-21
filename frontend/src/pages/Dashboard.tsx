@@ -10,6 +10,8 @@ export default function DashboardPage() {
 
     useEffect(() => {
         fetchStats().then(setStatsData).catch(console.error);
+        const interval = setInterval(() => fetchStats().then(setStatsData).catch(console.error), 4000);
+        return () => clearInterval(interval);
     }, []);
 
     const stats = [
