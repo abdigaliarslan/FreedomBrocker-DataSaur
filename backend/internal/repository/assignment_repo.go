@@ -21,7 +21,12 @@ func NewAssignmentRepo(pool *pgxpool.Pool) *AssignmentRepo {
 func (r *AssignmentRepo) Insert(ctx context.Context, tx pgx.Tx, a *domain.TicketAssignment) error {
 	_, err := tx.Exec(ctx,
 		`INSERT INTO ticket_assignment (id, ticket_id, manager_id, business_unit_id, routing_reason, is_current)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 ON CONFLICT (ticket_id) WHERE is_current = true DO UPDATE SET
+		   manager_id = EXCLUDED.manager_id,
+		   business_unit_id = EXCLUDED.business_unit_id,
+		   routing_reason = EXCLUDED.routing_reason,
+		   assigned_at = now()`,
 		a.ID, a.TicketID, a.ManagerID, a.BusinessUnitID, a.RoutingReason, a.IsCurrent,
 	)
 	return err

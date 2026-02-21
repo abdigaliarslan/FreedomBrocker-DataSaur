@@ -11,10 +11,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        752,
-        96
+        -656,
+        144
       ],
-      "id": "c47f544f-6b27-4fd8-8325-0efcddc6f839",
+      "id": "7602e6d8-f92f-4e50-9252-d71bcafc3aa0",
       "name": "Ticket Webhook",
       "webhookId": "26aa24c9-9c5c-47e2-b81a-b1d6d4b9e770"
     },
@@ -26,7 +26,7 @@
               "id": "6b2ed150-6a4d-4fb3-ba62-ba1360ad8f63",
               "name": "ticket_id",
               "value": "={{ $json.body.ticket_id || $json.body.id || $json.body.ticketId }}",
-              "type": "number"
+              "type": "string"
             }
           ]
         },
@@ -35,27 +35,27 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        976,
-        96
+        -432,
+        144
       ],
-      "id": "e9b29978-6e0f-4cfe-87db-0c8495991542",
+      "id": "7a4a314a-bd4e-49a2-87c2-89674b435024",
       "name": "Extract ticket_id"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id AS ticket_id, text AS description, address, segment\nFROM tickets\nWHERE id = $1\nLIMIT 1;",
+        "query": "SELECT id AS ticket_id, text AS description, address, segment\nFROM tickets\nWHERE id::text = $1 OR external_id = $1\nLIMIT 1;",
         "options": {
-          "queryReplacement": "={{ [ $json.ticket_id ] }}"
+          "queryReplacement": "={{ [ $json.ticket_id.toString() ] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1216,
-        96
+        -192,
+        144
       ],
-      "id": "2274f043-958b-49b3-a471-40bdf492fd21",
+      "id": "53e17c74-bada-4574-88ae-8e7e86fe8122",
       "name": "Get Ticket",
       "credentials": {
         "postgres": {
@@ -81,94 +81,11 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1456,
-        96
+        64,
+        144
       ],
-      "id": "2c7449be-dc83-467e-ae55-4efdcffd556d",
+      "id": "fb7a6548-1b88-43d2-aa91-a1362ce75ce7",
       "name": "Build LLM prompt"
-    },
-    {
-      "parameters": {
-        "prompt": "={{ $json.llm_prompt }}"
-      },
-      "type": "@n8n/n8n-nodes-langchain.chainLlm",
-      "typeVersion": 1.3,
-      "position": [
-        1696,
-        96
-      ],
-      "id": "81f26f17-bd43-4408-8a84-b6d89a4116dc",
-      "name": "AI: Enrich ticket"
-    },
-    {
-      "parameters": {
-        "model": "gpt-3.5-turbo",
-        "options": {
-          "temperature": 0
-        }
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1,
-      "position": [
-        1664,
-        320
-      ],
-      "id": "7367c7bc-0d4d-4e4f-a314-e5f811c7da12",
-      "name": "Model: Classifier",
-      "credentials": {
-        "openAiApi": {
-          "id": "2orCC4docCrLEFAQ",
-          "name": "OpenAi account 14"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "model": "gpt-3.5-turbo",
-        "options": {
-          "temperature": 0
-        }
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1,
-      "position": [
-        1664,
-        512
-      ],
-      "id": "a1fc9cea-8d8a-46b6-b583-5e53a40338d0",
-      "name": "Model: JSON Fixer",
-      "credentials": {
-        "openAiApi": {
-          "id": "2orCC4docCrLEFAQ",
-          "name": "OpenAi account 14"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsonSchema": "{\"type\": \"object\", \"properties\": {\"type\": {\"type\": \"string\", \"enum\": [\"Жалоба\", \"Смена данных\", \"Консультация\", \"Претензия\", \"Неработоспособность приложения\", \"Мошеннические действия\", \"Спам\"]}, \"sentiment\": {\"type\": \"string\", \"enum\": [\"Позитивный\", \"Нейтральный\", \"Негативный\"]}, \"priority\": {\"type\": \"integer\", \"minimum\": 1, \"maximum\": 10}, \"lang\": {\"type\": \"string\", \"enum\": [\"RU\", \"KZ\", \"ENG\"]}, \"summary\": {\"type\": \"string\"}, \"recommendation\": {\"type\": \"string\"}, \"confidence\": {\"type\": \"number\", \"minimum\": 0, \"maximum\": 1}}, \"required\": [\"type\", \"sentiment\", \"priority\", \"lang\", \"summary\", \"recommendation\"]}"
-      },
-      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
-      "typeVersion": 1,
-      "position": [
-        1872,
-        512
-      ],
-      "id": "8b6d8368-40ed-4e20-95c9-394245158fc9",
-      "name": "Schema: Ticket AI"
-    },
-    {
-      "parameters": {
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
-      "typeVersion": 1,
-      "position": [
-        1776,
-        256
-      ],
-      "id": "a22f93cb-f496-414c-b30e-d68f6c2a0e99",
-      "name": "Auto-fixing Output Parser"
     },
     {
       "parameters": {
@@ -178,7 +95,7 @@
               "id": "05c1a27f-bf4d-45a0-a0b5-bb654978192d",
               "name": "ticket_id",
               "value": "={{ $('Get Ticket').item.json.ticket_id }}",
-              "type": "number"
+              "type": "string"
             },
             {
               "id": "9e852b03-9169-49be-87f4-e703f7bd0bda",
@@ -211,16 +128,16 @@
               "type": "string"
             },
             {
-              "id": "74a870f6-f65d-4ec0-a890-28a75db09fca",
-              "name": "priority",
-              "value": "={{ $json.output.priority }}",
-              "type": "number"
-            },
-            {
               "id": "9dbe5514-acdc-472f-9c6c-3914082657c2",
               "name": "lang",
               "value": "={{ $json.output.lang || 'RU' }}",
               "type": "string"
+            },
+            {
+              "id": "74a870f6-f65d-4ec0-a890-28a75db09fca",
+              "name": "priority",
+              "value": "={{ Math.max(1, Math.min(10, parseInt($json.output.priority || 5))) }}",
+              "type": "number"
             },
             {
               "id": "d97a86de-3ded-4f0b-814e-754a6d127595",
@@ -247,27 +164,27 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        2096,
-        96
+        704,
+        144
       ],
-      "id": "eb1c3849-2b0f-47fd-99a4-7c62cd7fe176",
+      "id": "6bd1fa65-ec88-4ccb-9b08-202b54f9f3c3",
       "name": "Map AI fields"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO ticket_ai (ticket_id, type, sentiment, priority, lang, summary, recommendation, confidence, updated_at)\nVALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())\nON CONFLICT (ticket_id) DO UPDATE SET\n  type = EXCLUDED.type,\n  sentiment = EXCLUDED.sentiment,\n  priority = EXCLUDED.priority,\n  lang = EXCLUDED.lang,\n  summary = EXCLUDED.summary,\n  recommendation = EXCLUDED.recommendation,\n  confidence = EXCLUDED.confidence,\n  updated_at = NOW()\nRETURNING *;",
+        "query": "INSERT INTO ticket_ai (ticket_id, type, sentiment, priority, lang, summary, recommendation, confidence, updated_at)\nVALUES ((SELECT id FROM tickets WHERE id::text = $1 OR external_id = $1), $2, $3, $4, $5, $6, $7, $8, NOW())\nON CONFLICT (ticket_id) DO UPDATE SET\n  type = EXCLUDED.type,\n  sentiment = EXCLUDED.sentiment,\n  priority = EXCLUDED.priority,\n  lang = EXCLUDED.lang,\n  summary = EXCLUDED.summary,\n  recommendation = EXCLUDED.recommendation,\n  confidence = EXCLUDED.confidence,\n  updated_at = NOW()\nRETURNING *;",
         "options": {
-          "queryReplacement": "={{ [ $json.ticket_id, $json.ai_type, $json.sentiment, $json.priority, $json.lang, $json.summary, $json.recommendation, $json.confidence ] }}"
+          "queryReplacement": "={{ [ $json.ticket_id.toString(), $json.ai_type, $json.sentiment, $json.priority, $json.lang, $json.summary, $json.recommendation, $json.confidence ] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        2320,
-        96
+        928,
+        144
       ],
-      "id": "770d5731-8da1-422b-9ff3-e2f9f105a0a7",
+      "id": "0408c4f9-b69e-439d-bd56-782091ecfc57",
       "name": "Upsert Ticket AI",
       "credentials": {
         "postgres": {
@@ -284,7 +201,7 @@
           "parameters": [
             {
               "name": "q",
-              "value": "={{ $json.address }}"
+              "value": "={{ $('Map AI fields').item.json.address }}"
             },
             {
               "name": "format",
@@ -305,7 +222,7 @@
           "parameters": [
             {
               "name": "User-Agent",
-              "value": "FIRE-Hackathon-n8n (set-your-email@example.com)"
+              "value": "FreedomBroker-FIRE-Ticket-Enrichment (contact: support@freedombroker.kz)"
             },
             {
               "name": "Accept-Language",
@@ -313,15 +230,17 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "continueOnFail": true
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        2544,
-        96
+        1152,
+        144
       ],
-      "id": "c5c32111-955c-4c61-b819-78d3bec960c9",
+      "id": "33c604bc-0b3d-45c3-b238-0bea6b0a05d0",
       "name": "Geocode (Nominatim)"
     },
     {
@@ -331,27 +250,27 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2752,
-        96
+        1360,
+        144
       ],
-      "id": "8f9a088a-9e89-4cfd-8430-45c160a06b9b",
+      "id": "94e6a28e-a7b2-4b00-8442-6992dcd5e523",
       "name": "Parse geocode"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE ticket_ai\nSET lat = $2,\n    lon = $3,\n    geo_country = $4,\n    geo_status = $5,\n    updated_at = NOW()\nWHERE ticket_id = $1\nRETURNING *;",
+        "query": "UPDATE ticket_ai\nSET lat = $2,\n    lon = $3,\n    geo_country = $4,\n    geo_status = $5,\n    updated_at = NOW()\nWHERE ticket_id = (SELECT id FROM tickets WHERE id::text = $1 OR external_id = $1)\nRETURNING *;",
         "options": {
-          "queryReplacement": "={{ [ $json.ticket_id, $json.lat, $json.lon, $json.geo_country, $json.geo_status ] }}"
+          "queryReplacement": "={{ [ $json.ticket_id.toString(), $json.lat, $json.lon, $json.geo_country, $json.geo_status ] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        2976,
-        96
+        1584,
+        144
       ],
-      "id": "5d96b245-a708-4adb-824a-6e10bfd36c2a",
+      "id": "6c5aa207-6dfe-4f82-9c4e-71d287bbe7bd",
       "name": "Update Geo",
       "credentials": {
         "postgres": {
@@ -363,18 +282,18 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "WITH\ninput AS (\n  SELECT\n    $1::bigint  AS ticket_id,\n    $2::text    AS ai_type,\n    $3::text    AS segment,\n    $4::text    AS lang,\n    $5::text    AS geo_status,\n    $6::text    AS geo_country,\n    $7::double precision AS lat,\n    $8::double precision AS lon,\n    ( $5 = 'OK' AND $6 = 'KZ' AND $7 IS NOT NULL AND $8 IS NOT NULL ) AS geo_ok\n),\noffice AS (\n  SELECT bu.id, bu.name,\n         CASE WHEN (SELECT geo_ok FROM input)\n              THEN ((bu.lat - (SELECT lat FROM input))^2 + (bu.lon - (SELECT lon FROM input))^2)\n              ELSE 0\n         END AS dist2,\n         CASE WHEN NOT (SELECT geo_ok FROM input) THEN\n           CASE WHEN (mod((SELECT ticket_id FROM input), 2) = 0)\n                THEN ((bu.name ILIKE '%Astana%' OR bu.name ILIKE '%Астана%')::int)\n                ELSE ((bu.name ILIKE '%Almaty%' OR bu.name ILIKE '%Алматы%')::int)\n           END\n         ELSE 0 END AS pref\n  FROM business_units bu\n  WHERE (SELECT geo_ok FROM input)\n     OR (bu.name ILIKE '%Astana%' OR bu.name ILIKE '%Астана%' OR bu.name ILIKE '%Almaty%' OR bu.name ILIKE '%Алматы%')\n  ORDER BY\n    CASE WHEN (SELECT geo_ok FROM input) THEN dist2 ELSE 0 END ASC,\n    pref DESC,\n    bu.id ASC\n  LIMIT 1\n),\nbucket AS (\n  SELECT\n    office.id::text || '|' ||\n    CASE WHEN (SELECT segment FROM input) ILIKE 'vip%' OR (SELECT segment FROM input) ILIKE 'prior%'\n         THEN 'vip' ELSE 'mass' END || '|' ||\n    CASE WHEN (SELECT ai_type FROM input) = 'Смена данных' THEN 'chief' ELSE 'any' END || '|' ||\n    CASE WHEN (SELECT lang FROM input) IN ('KZ','ENG') THEN (SELECT lang FROM input) ELSE 'RU' END\n    AS key\n  FROM office\n),\neligible AS (\n  SELECT m.id, m.active_count\n  FROM managers m, office, input\n  WHERE m.office_id = office.id\n    AND (NOT (input.segment ILIKE 'vip%' OR input.segment ILIKE 'prior%') OR m.skills ? 'VIP')\n    AND (NOT (input.ai_type = 'Смена данных') OR m.position = 'Глав спец')\n    AND (NOT (input.lang IN ('KZ','ENG')) OR m.skills ? input.lang)\n  ORDER BY m.active_count ASC, m.id ASC\n  LIMIT 2\n),\npair AS (\n  SELECT\n    (array_agg(id ORDER BY active_count ASC, id ASC))[1] AS m1,\n    (array_agg(id ORDER BY active_count ASC, id ASC))[2] AS m2\n  FROM eligible\n),\nensure_bucket AS (\n  INSERT INTO rr_pointer(routing_bucket, last_manager_id, updated_at)\n  SELECT bucket.key, NULL, NOW()\n  FROM bucket\n  ON CONFLICT (routing_bucket) DO NOTHING\n  RETURNING routing_bucket\n),\nstate AS (\n  SELECT rp.routing_bucket, rp.last_manager_id\n  FROM rr_pointer rp, bucket\n  WHERE rp.routing_bucket = bucket.key\n  FOR UPDATE\n),\nchosen AS (\n  SELECT\n    bucket.key AS routing_bucket,\n    office.id AS office_id,\n    pair.m1,\n    pair.m2,\n    CASE\n      WHEN pair.m1 IS NULL THEN NULL\n      WHEN pair.m2 IS NULL THEN pair.m1\n      WHEN state.last_manager_id = pair.m1 THEN pair.m2\n      WHEN state.last_manager_id = pair.m2 THEN pair.m1\n      ELSE pair.m1\n    END AS manager_id\n  FROM bucket, office, pair, state\n),\nupd_rr AS (\n  UPDATE rr_pointer\n  SET last_manager_id = chosen.manager_id, updated_at = NOW()\n  FROM chosen\n  WHERE rr_pointer.routing_bucket = chosen.routing_bucket\n    AND chosen.manager_id IS NOT NULL\n  RETURNING rr_pointer.routing_bucket\n),\nins_assign AS (\n  INSERT INTO ticket_assignment(ticket_id, manager_id, office_id, assigned_at, routing_bucket)\n  SELECT (SELECT ticket_id FROM input), chosen.manager_id, chosen.office_id, NOW(), chosen.routing_bucket\n  FROM chosen\n  ON CONFLICT (ticket_id) DO UPDATE\n    SET manager_id = EXCLUDED.manager_id,\n        office_id = EXCLUDED.office_id,\n        assigned_at = EXCLUDED.assigned_at,\n        routing_bucket = EXCLUDED.routing_bucket\n  RETURNING *\n),\nupd_load AS (\n  UPDATE managers\n  SET active_count = active_count + 1\n  WHERE id = (SELECT manager_id FROM chosen)\n    AND (SELECT manager_id FROM chosen) IS NOT NULL\n  RETURNING id, active_count\n)\nSELECT\n  (SELECT ticket_id FROM input) AS ticket_id,\n  ins_assign.manager_id,\n  ins_assign.office_id,\n  ins_assign.routing_bucket,\n  (SELECT name FROM office) AS office_name,\n  upd_load.active_count AS manager_active_count,\n  -- echo back AI fields for response/UI\n  (SELECT ai_type FROM input) AS ai_type,\n  (SELECT segment FROM input) AS segment,\n  (SELECT lang FROM input) AS lang,\n  (SELECT geo_status FROM input) AS geo_status,\n  (SELECT geo_country FROM input) AS geo_country,\n  (SELECT lat FROM input) AS lat,\n  (SELECT lon FROM input) AS lon\nFROM ins_assign\nLEFT JOIN upd_load ON upd_load.id = ins_assign.manager_id;",
+        "query": "WITH\ninput AS (\n  SELECT\n    (SELECT id FROM tickets WHERE id::text = $1 OR external_id = $1) AS ticket_id,\n    $2::text    AS ai_type,\n    $3::text    AS sentiment,\n    $4::int     AS priority,\n    $5::text    AS lang,\n    $6::text    AS summary,\n    $7::text    AS recommendation,\n    $8::double precision AS confidence,\n    $9::text    AS segment,\n    $10::text   AS geo_status,\n    $11::text   AS geo_country,\n    $12::double precision AS lat,\n    $13::double precision AS lon,\n    ( $10 = 'OK' AND $11 = 'KZ' AND $12 IS NOT NULL AND $13 IS NOT NULL ) AS geo_ok\n),\noffice AS (\n  SELECT bu.id, bu.name,\n         CASE WHEN (SELECT geo_ok FROM input)\n              THEN ((bu.lat - (SELECT lat FROM input))^2 + (bu.lon - (SELECT lon FROM input))^2)\n              ELSE 0\n         END AS dist2,\n         CASE WHEN NOT (SELECT geo_ok FROM input) THEN\n           CASE WHEN (mod(abs(('x' || left((SELECT ticket_id FROM input)::text, 8))::bit(32)::int), 2) = 0)\n                THEN ((bu.name ILIKE '%Astana%' OR bu.name ILIKE '%Астана%')::int)\n                ELSE ((bu.name ILIKE '%Almaty%' OR bu.name ILIKE '%Алматы%')::int)\n           END\n         ELSE 0 END AS pref\n  FROM business_units bu\n  WHERE (SELECT geo_ok FROM input)\n     OR (bu.name ILIKE '%Astana%' OR bu.name ILIKE '%Астана%' OR bu.name ILIKE '%Almaty%' OR bu.name ILIKE '%Алматы%')\n  ORDER BY dist2 ASC, pref DESC, bu.id ASC\n  LIMIT 1\n),\nbucket AS (\n  SELECT\n    office.id::text || '|' ||\n    CASE WHEN (SELECT segment FROM input) ILIKE 'vip%' OR (SELECT segment FROM input) ILIKE 'prior%'\n         THEN 'vip' ELSE 'mass' END || '|' ||\n    CASE WHEN (SELECT ai_type FROM input) = 'Смена данных' THEN 'chief' ELSE 'any' END || '|' ||\n    CASE WHEN (SELECT lang FROM input) IN ('KZ','ENG') THEN (SELECT lang FROM input) ELSE 'RU' END\n    AS key\n  FROM office\n),\neligible AS (\n  SELECT m.id, m.active_count\n  FROM managers m, office, input\n  WHERE m.office_id = office.id\n    AND (NOT (input.segment ILIKE 'vip%' OR input.segment ILIKE 'prior%') OR m.skills ? 'VIP')\n    AND (NOT (input.ai_type = 'Смена данных') OR m.position = 'Глав спец')\n    AND (NOT (input.lang IN ('KZ','ENG')) OR m.skills ? input.lang)\n  ORDER BY m.active_count ASC, m.id ASC\n  LIMIT 2\n),\npair AS (\n  SELECT\n    (array_agg(id ORDER BY active_count ASC, id ASC))[1] AS m1,\n    (array_agg(id ORDER BY active_count ASC, id ASC))[2] AS m2\n  FROM eligible\n),\nensure_bucket AS (\n  INSERT INTO rr_pointer(routing_bucket, business_unit_id, last_manager_id, updated_at)\n  SELECT bucket.key, office.id, NULL, NOW()\n  FROM bucket, office\n  ON CONFLICT (routing_bucket) DO NOTHING\n  RETURNING routing_bucket\n),\nstate AS (\n  SELECT rp.routing_bucket, rp.last_manager_id\n  FROM rr_pointer rp, bucket\n  WHERE rp.routing_bucket = bucket.key\n  FOR UPDATE\n),\nchosen AS (\n  SELECT\n    bucket.key AS routing_bucket,\n    office.id AS office_id,\n    pair.m1,\n    pair.m2,\n    CASE\n      WHEN pair.m1 IS NULL THEN NULL\n      WHEN pair.m2 IS NULL THEN pair.m1\n      WHEN state.last_manager_id = pair.m1 THEN pair.m2\n      WHEN state.last_manager_id = pair.m2 THEN pair.m1\n      ELSE pair.m1\n    END AS manager_id\n  FROM bucket, office, pair, state\n),\nupd_rr AS (\n  UPDATE rr_pointer\n  SET last_manager_id = chosen.manager_id, updated_at = NOW()\n  FROM chosen\n  WHERE rr_pointer.routing_bucket = chosen.routing_bucket\n    AND chosen.manager_id IS NOT NULL\n  RETURNING rr_pointer.routing_bucket\n),\nins_assign AS (\n  INSERT INTO ticket_assignment(ticket_id, manager_id, business_unit_id, office_id, assigned_at, routing_bucket)\n  SELECT (SELECT ticket_id FROM input), chosen.manager_id, chosen.office_id, chosen.office_id, NOW(), chosen.routing_bucket\n  FROM chosen\n  ON CONFLICT (ticket_id) DO UPDATE\n    SET manager_id = EXCLUDED.manager_id,\n        business_unit_id = EXCLUDED.business_unit_id,\n        office_id = EXCLUDED.office_id,\n        assigned_at = EXCLUDED.assigned_at,\n        routing_bucket = EXCLUDED.routing_bucket\n  RETURNING *\n),\nupd_load AS (\n  UPDATE managers\n  SET active_count = active_count + 1\n  WHERE id = (SELECT manager_id FROM chosen)\n    AND (SELECT manager_id FROM chosen) IS NOT NULL\n  RETURNING id, active_count\n)\nSELECT\n  (SELECT ticket_id FROM input) AS ticket_id,\n  ins_assign.manager_id,\n  ins_assign.office_id,\n  ins_assign.routing_bucket,\n  (SELECT name FROM office) AS office_name,\n  upd_load.active_count AS manager_active_count,\n  -- echo back AI fields for response/UI\n  (SELECT ai_type FROM input) AS ai_type,\n  (SELECT sentiment FROM input) AS sentiment,\n  (SELECT priority FROM input) AS priority,\n  (SELECT lang FROM input) AS lang,\n  (SELECT summary FROM input) AS summary,\n  (SELECT recommendation FROM input) AS recommendation,\n  (SELECT confidence FROM input) AS confidence,\n  (SELECT segment FROM input) AS segment,\n  (SELECT geo_status FROM input) AS geo_status,\n  (SELECT geo_country FROM input) AS geo_country,\n  (SELECT lat FROM input) AS lat,\n  (SELECT lon FROM input) AS lon\nFROM ins_assign\nLEFT JOIN upd_load ON upd_load.id = ins_assign.manager_id;",
         "options": {
-          "queryReplacement": "={{ [ $json.ticket_id, $json.ai_type, $json.segment, $json.lang, $json.geo_status, $json.geo_country, $json.lat, $json.lon ] }}"
+          "queryReplacement": "={{ [ $json.ticket_id.toString(), $json.ai_type, $json.sentiment, $json.priority, $json.lang, $json.summary, $json.recommendation, $json.confidence, $json.segment, $json.geo_status, $json.geo_country, $json.lat, $json.lon ] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        3216,
-        96
+        1824,
+        144
       ],
-      "id": "234f0dde-76a4-4ec1-8924-bb1f032e2371",
+      "id": "7423cf4d-adbc-4e96-bbf2-8f989ff87985",
       "name": "Assign manager (atomic)",
       "credentials": {
         "postgres": {
@@ -385,18 +304,88 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "http://178.88.115.213/api/v1/internal/callback/enrich",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"ticket_id\": $json.ticket_id,\n  \"type\": $json.ai_type || 'Консультация',\n  \"sentiment\": $json.sentiment || 'Нейтральный',\n  \"priority_1_10\": Math.max(1, Math.min(10, parseInt($json.priority || 5))),\n  \"lang\": $json.lang || 'RU',\n  \"summary\": $json.summary || '',\n  \"recommended_actions\": [$json.recommendation || ''],\n  \"geo_status\": $json.geo_status,\n  \"lat\": $json.lat,\n  \"lon\": $json.lon,\n  \"confidence_type\": $json.confidence || 0.7,\n  \"confidence_sentiment\": $json.confidence || 0.7,\n  \"confidence_priority\": $json.confidence || 0.7\n}) }}",
+        "options": {}
+      },
+      "id": "80e91170-f7c6-4754-9570-205ad0fabaf7",
+      "name": "Callback to Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2000,
+        144
+      ]
+    },
+    {
+      "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ {\n  ticket_id: $json.ticket_id,\n  manager_id: $json.manager_id,\n  office_id: $json.office_id,\n  office_name: $json.office_name,\n  routing_bucket: $json.routing_bucket,\n  manager_active_count: $json.manager_active_count,\n  ai: {\n    type: $json.ai_type,\n    segment: $json.segment,\n    lang: $json.lang,\n    sentiment: $('Map AI fields').item.json.sentiment,\n    priority: $('Map AI fields').item.json.priority,\n    summary: $('Map AI fields').item.json.summary,\n    recommendation: $('Map AI fields').item.json.recommendation,\n    confidence: $('Map AI fields').item.json.confidence\n  },\n  geo: {\n    status: $json.geo_status,\n    country: $json.geo_country,\n    lat: $json.lat,\n    lon: $json.lon\n  }\n} }}",
+        "responseBody": "={{ {\n  ticket_id: $('Assign manager (atomic)').item.json.ticket_id,\n  manager_id: $('Assign manager (atomic)').item.json.manager_id,\n  office_id: $('Assign manager (atomic)').item.json.office_id,\n  office_name: $('Assign manager (atomic)').item.json.office_name,\n  routing_bucket: $('Assign manager (atomic)').item.json.routing_bucket,\n  manager_active_count: $('Assign manager (atomic)').item.json.manager_active_count,\n  ai: {\n    type: $('Assign manager (atomic)').item.json.ai_type,\n    segment: $('Assign manager (atomic)').item.json.segment,\n    lang: $('Assign manager (atomic)').item.json.lang,\n    sentiment: $('Map AI fields').item.json.sentiment,\n    priority: $('Map AI fields').item.json.priority,\n    summary: $('Map AI fields').item.json.summary,\n    recommendation: $('Map AI fields').item.json.recommendation,\n    confidence: $('Map AI fields').item.json.confidence\n  },\n  geo: {\n    status: $('Assign manager (atomic)').item.json.geo_status,\n    country: $('Assign manager (atomic)').item.json.geo_country,\n    lat: $('Assign manager (atomic)').item.json.lat,\n    lon: $('Assign manager (atomic)').item.json.lon\n  }\n} }}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        3456,
-        96
+        2208,
+        144
       ],
-      "id": "ffed637e-006f-4432-9f50-13efdf70774b",
+      "id": "c9d03903-2169-496f-b57e-d2002a5b0c78",
       "name": "Respond"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.llm_prompt }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        16,
+        544
+      ],
+      "id": "f4193f2f-21a9-476e-8bbc-eb0ed9582727",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -128,
+        752
+      ],
+      "id": "6c8daf86-7e43-4a03-81fc-a187be787dce",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "2orCC4docCrLEFAQ",
+          "name": "OpenAi account 14"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "{\"type\": \"object\", \"properties\": {\"type\": {\"type\": \"string\", \"enum\": [\"Жалоба\", \"Смена данных\", \"Консультация\", \"Претензия\", \"Неработоспособность приложения\", \"Мошеннические действия\", \"Спам\"]}, \"sentiment\": {\"type\": \"string\", \"enum\": [\"Позитивный\", \"Нейтральный\", \"Негативный\"]}, \"priority\": {\"type\": \"integer\", \"minimum\": 1, \"maximum\": 10}, \"lang\": {\"type\": \"string\", \"enum\": [\"RU\", \"KZ\", \"ENG\"]}, \"summary\": {\"type\": \"string\"}, \"recommendation\": {\"type\": \"string\"}, \"confidence\": {\"type\": \"number\", \"minimum\": 0, \"maximum\": 1}}, \"required\": [\"type\", \"sentiment\", \"priority\", \"lang\", \"summary\", \"recommendation\"]}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        176,
+        752
+      ],
+      "id": "e4220d3f-22a6-47cc-929a-0dca2633738c",
+      "name": "Code Tool"
     }
   ],
   "pinData": {},
@@ -438,18 +427,7 @@
       "main": [
         [
           {
-            "node": "AI: Enrich ticket",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI: Enrich ticket": {
-      "main": [
-        [
-          {
-            "node": "Map AI fields",
+            "node": "AI Agent",
             "type": "main",
             "index": 0
           }
@@ -515,6 +493,17 @@
       "main": [
         [
           {
+            "node": "Callback to Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Callback to Backend": {
+      "main": [
+        [
+          {
             "node": "Respond",
             "type": "main",
             "index": 0
@@ -522,56 +511,45 @@
         ]
       ]
     },
-    "Model: Classifier": {
+    "OpenAI Chat Model": {
       "ai_languageModel": [
         [
           {
-            "node": "AI: Enrich ticket",
+            "node": "AI Agent",
             "type": "ai_languageModel",
             "index": 0
           }
         ]
       ]
     },
-    "Auto-fixing Output Parser": {
-      "ai_outputParser": [
+    "Code Tool": {
+      "ai_tool": [
         [
           {
-            "node": "AI: Enrich ticket",
-            "type": "ai_outputParser",
+            "node": "AI Agent",
+            "type": "ai_tool",
             "index": 0
           }
         ]
       ]
     },
-    "Schema: Ticket AI": {
-      "ai_outputParser": [
+    "AI Agent": {
+      "main": [
         [
           {
-            "node": "Auto-fixing Output Parser",
-            "type": "ai_outputParser",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Model: JSON Fixer": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Auto-fixing Output Parser",
-            "type": "ai_languageModel",
+            "node": "Map AI fields",
+            "type": "main",
             "index": 0
           }
         ]
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "2d002e7c-efb9-49bb-a63d-8244bff91b6b",
+  "versionId": "6d19ad00-9ae9-4087-909f-19f418ba8b13",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "7abc0e43a8c4e7120fcc9954af9ed057b9a7c696af74e6f72ec8c8e6d1798c35"

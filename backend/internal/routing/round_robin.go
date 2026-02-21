@@ -30,6 +30,18 @@ type RRResult struct {
 // Assign performs the transactional round-robin assignment.
 // Must be called within a transaction.
 func (rr *RoundRobin) Assign(ctx context.Context, tx pgx.Tx, ticketID, buID uuid.UUID, skillGroup string, finalists []domain.Manager, routingReason string) (*RRResult, error) {
+	// Check if already assigned (idempotency for n8n)
+	var existingID uuid.UUID
+	err := tx.QueryRow(ctx, `SELECT manager_id FROM ticket_assignment WHERE ticket_id = $1 AND is_current = true`, ticketID).Scan(&existingID)
+	if err == nil {
+		// Already assigned. We can just return the existing one or update it.
+		// For simplicity and since n8n already did it, we just succeed.
+		return &RRResult{
+			SelectedManager: domain.Manager{ID: existingID},
+			Decision:        "Already assigned (reusing existing)",
+		}, nil
+	}
+
 	if len(finalists) == 0 {
 		return nil, fmt.Errorf("no finalists for round robin")
 	}
