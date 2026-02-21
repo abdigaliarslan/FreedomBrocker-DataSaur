@@ -15,13 +15,17 @@ WHERE text IS NULL OR address IS NULL OR segment IS NULL;
 ALTER TABLE ticket_ai ADD COLUMN IF NOT EXISTS priority INT;
 ALTER TABLE ticket_ai ADD COLUMN IF NOT EXISTS recommendation TEXT;
 ALTER TABLE ticket_ai ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION;
+ALTER TABLE ticket_ai ADD COLUMN IF NOT EXISTS geo_country TEXT;
+ALTER TABLE ticket_ai ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
-UPDATE ticket_ai SET 
+UPDATE ticket_ai SET
     priority = priority_1_10,
-    recommendation = (CASE 
-        WHEN jsonb_array_length(recommended_actions) > 0 THEN recommended_actions->>0 
-        ELSE '' 
-    END)
+    recommendation = (CASE
+        WHEN recommended_actions IS NOT NULL AND jsonb_array_length(recommended_actions) > 0
+        THEN recommended_actions->>0
+        ELSE ''
+    END),
+    updated_at = COALESCE(enriched_at, created_at)
 WHERE priority IS NULL OR recommendation IS NULL;
 
 -- 3. Managers table
@@ -50,6 +54,14 @@ ALTER TABLE ticket_assignment ADD COLUMN IF NOT EXISTS routing_bucket TEXT;
 ALTER TABLE ticket_assignment ADD COLUMN IF NOT EXISTS office_id UUID;
 
 UPDATE ticket_assignment SET office_id = business_unit_id WHERE office_id IS NULL;
+
+-- Unique constraint on ticket_id for n8n ON CONFLICT (ticket_id)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_assignment_ticket_unique') THEN
+        CREATE UNIQUE INDEX idx_assignment_ticket_unique ON ticket_assignment(ticket_id);
+    END IF;
+END $$;
 
 -- 6. Triggers for synchronization
 -- Managers: Sync current_load and active_count
