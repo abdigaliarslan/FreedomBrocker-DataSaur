@@ -40,6 +40,7 @@ WHERE office_id IS NULL OR active_count IS NULL;
 -- 4. RR Pointer table
 ALTER TABLE rr_pointer ADD COLUMN IF NOT EXISTS routing_bucket TEXT;
 ALTER TABLE rr_pointer ADD COLUMN IF NOT EXISTS last_manager_id UUID;
+ALTER TABLE rr_pointer ALTER COLUMN business_unit_id DROP NOT NULL;
 
 -- Create unique index on routing_bucket for ON CONFLICT
 DO $$ 
@@ -52,8 +53,10 @@ END $$;
 -- 5. Ticket Assignment table
 ALTER TABLE ticket_assignment ADD COLUMN IF NOT EXISTS routing_bucket TEXT;
 ALTER TABLE ticket_assignment ADD COLUMN IF NOT EXISTS office_id UUID;
+ALTER TABLE ticket_assignment ALTER COLUMN business_unit_id DROP NOT NULL;
 
 UPDATE ticket_assignment SET office_id = business_unit_id WHERE office_id IS NULL;
+UPDATE ticket_assignment SET business_unit_id = office_id WHERE business_unit_id IS NULL;
 
 -- Unique constraint on ticket_id for n8n ON CONFLICT (ticket_id)
 DO $$
@@ -130,3 +133,20 @@ DROP TRIGGER IF EXISTS trg_sync_ticket_ai_fields ON ticket_ai;
 CREATE TRIGGER trg_sync_ticket_ai_fields
 BEFORE INSERT OR UPDATE ON ticket_ai
 FOR EACH ROW EXECUTE FUNCTION sync_ticket_ai_fields();
+
+-- Ticket Assignment: Sync business_unit_id <-> office_id
+CREATE OR REPLACE FUNCTION sync_assignment_fields() RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.office_id IS DISTINCT FROM OLD.office_id THEN
+        NEW.business_unit_id = NEW.office_id;
+    ELSIF NEW.business_unit_id IS DISTINCT FROM OLD.business_unit_id THEN
+        NEW.office_id = NEW.business_unit_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_assignment_fields ON ticket_assignment;
+CREATE TRIGGER trg_sync_assignment_fields
+BEFORE INSERT OR UPDATE ON ticket_assignment
+FOR EACH ROW EXECUTE FUNCTION sync_assignment_fields();
