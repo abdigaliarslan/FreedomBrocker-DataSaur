@@ -71,7 +71,7 @@ func main() {
 	// Handlers
 	importH := handler.NewImportHandler(importSvc)
 	callbackH := handler.NewCallbackHandler(ticketRepo, routingSvc)
-	ticketH := handler.NewTicketHandler(ticketSvc)
+	ticketH := handler.NewTicketHandler(ticketSvc, cfg.N8NWebhookURL)
 	managerH := handler.NewManagerHandler(managerSvc)
 	dashboardH := handler.NewDashboardHandler(dashboardSvc)
 	starH := handler.NewStarHandler(starSvc)
@@ -105,6 +105,8 @@ func main() {
 		r.Get("/tickets", ticketH.List)
 		r.Get("/tickets/{id}", ticketH.Get)
 		r.Patch("/tickets/{id}/status", ticketH.UpdateStatus)
+		r.Post("/tickets/{id}/enrich", ticketH.Enrich)
+		r.Post("/tickets/enrich-all", ticketH.EnrichAll)
 
 		// Managers
 		r.Get("/managers", managerH.List)
