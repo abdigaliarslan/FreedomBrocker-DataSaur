@@ -32,10 +32,9 @@ type RRResult struct {
 func (rr *RoundRobin) Assign(ctx context.Context, tx pgx.Tx, ticketID, buID uuid.UUID, skillGroup string, finalists []domain.Manager, routingReason string) (*RRResult, error) {
 	// Check if already assigned (idempotency for n8n)
 	var existingID uuid.UUID
-	err := tx.QueryRow(ctx, `SELECT manager_id FROM ticket_assignment WHERE ticket_id = $1 AND is_current = true`, ticketID).Scan(&existingID)
+	err := tx.QueryRow(ctx, `SELECT manager_id FROM ticket_assignment WHERE ticket_id = $1 AND is_current = true FOR UPDATE`, ticketID).Scan(&existingID)
 	if err == nil {
-		// Already assigned. We can just return the existing one or update it.
-		// For simplicity and since n8n already did it, we just succeed.
+		// Already assigned. Reusing existing.
 		return &RRResult{
 			SelectedManager: domain.Manager{ID: existingID},
 			Decision:        "Already assigned (reusing existing)",
@@ -54,6 +53,8 @@ func (rr *RoundRobin) Assign(ctx context.Context, tx pgx.Tx, ticketID, buID uuid
 			TicketID:       ticketID,
 			ManagerID:      selected.ID,
 			BusinessUnitID: buID,
+			OfficeID:       buID, // Assuming BU is office here for simplicity
+			RoutingBucket:  skillGroup,
 			RoutingReason:  &routingReason,
 			IsCurrent:      true,
 		}
@@ -85,6 +86,8 @@ func (rr *RoundRobin) Assign(ctx context.Context, tx pgx.Tx, ticketID, buID uuid
 		TicketID:       ticketID,
 		ManagerID:      selected.ID,
 		BusinessUnitID: buID,
+		OfficeID:       buID,
+		RoutingBucket:  skillGroup,
 		RoutingReason:  &routingReason,
 		IsCurrent:      true,
 	}

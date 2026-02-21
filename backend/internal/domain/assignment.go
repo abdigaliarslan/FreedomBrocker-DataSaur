@@ -11,6 +11,8 @@ type TicketAssignment struct {
 	TicketID       uuid.UUID `json:"ticket_id" db:"ticket_id"`
 	ManagerID      uuid.UUID `json:"manager_id" db:"manager_id"`
 	BusinessUnitID uuid.UUID `json:"business_unit_id" db:"business_unit_id"`
+	OfficeID       uuid.UUID `json:"office_id" db:"office_id"`
+	RoutingBucket  string    `json:"routing_bucket" db:"routing_bucket"`
 	AssignedAt     time.Time `json:"assigned_at" db:"assigned_at"`
 	RoutingReason  *string   `json:"routing_reason" db:"routing_reason"`
 	IsCurrent      bool      `json:"is_current" db:"is_current"`
