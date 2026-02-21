@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, Loader2 } from 'lucide-react';
+import { Send, Bot } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { queryStar } from '@/api/star';
@@ -66,17 +66,17 @@ export default function StarAssistantPage() {
     return (
         <div className="flex flex-col h-screen overflow-hidden">
             <Header title="Star Assistant" />
-            <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-6 scrollbar-thin scrollbar-thumb-border">
+            <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-6 scrollbar-thin">
                 {messages.map((m, i) => (
                     <div key={i} className={cn(
-                        "max-w-[80%] flex flex-col gap-1.5",
+                        "max-w-[80%] flex flex-col gap-1.5 animate-fade-in-up",
                         m.from === 'user' ? "self-end items-end" : "self-start items-start"
                     )}>
                         <div className={cn(
-                            "px-5 py-3.5 rounded-2xl text-[14px] leading-relaxed shadow-sm",
+                            "px-5 py-3.5 rounded-2xl text-[14px] leading-relaxed",
                             m.from === 'user'
-                                ? "bg-primary text-white font-medium rounded-br-none"
-                                : "bg-white border border-border text-foreground font-medium rounded-bl-none"
+                                ? "bg-primary text-white font-medium rounded-br-none shadow-md shadow-primary/20"
+                                : "glass-card text-foreground font-medium rounded-bl-none shadow-card"
                         )}>
                             {m.text.split('\n').map((line, j) => (
                                 <p key={j} className={j > 0 ? "mt-2" : ""}>{line}</p>
@@ -86,9 +86,12 @@ export default function StarAssistantPage() {
                     </div>
                 ))}
                 {loading && (
-                    <div className="self-start flex items-center gap-3 bg-white border border-border px-5 py-3.5 rounded-2xl rounded-bl-none shadow-sm text-muted-foreground animate-pulse">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-[13px] font-medium font-inter"> Star Assistant думает...</span>
+                    <div className="self-start flex items-center gap-3 glass-card px-5 py-3.5 rounded-2xl rounded-bl-none shadow-card text-muted-foreground animate-fade-in">
+                        <div className="flex gap-1">
+                            <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
                     </div>
                 )}
                 <div ref={messagesEndRef} />
@@ -100,7 +103,7 @@ export default function StarAssistantPage() {
                         <button
                             key={i}
                             onClick={() => setInput(s)}
-                            className="px-4 py-1.5 rounded-full border border-border text-[12px] font-bold text-muted-foreground hover:border-primary hover:text-primary transition-all bg-background"
+                            className="px-4 py-1.5 rounded-full border border-border text-[12px] font-bold text-muted-foreground hover:border-primary hover:text-primary hover:scale-105 transition-all bg-background"
                         >
                             {s}
                         </button>

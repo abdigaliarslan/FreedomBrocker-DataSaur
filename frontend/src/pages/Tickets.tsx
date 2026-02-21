@@ -1,19 +1,26 @@
-import { useEffect, useState, useCallback } from 'react';
-import { Filter, Search, ChevronLeft, ChevronRight, MoreVertical, Zap } from 'lucide-react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Search, ChevronLeft, ChevronRight, MoreVertical, Zap, Sparkles, Eye, RefreshCw, CheckSquare } from 'lucide-react';
 import Header from '@/components/layout/Header';
+import TicketDetail from '@/components/TicketDetail';
 import { cn } from '@/lib/utils';
-import { fetchTickets } from '@/api/tickets';
+import { fetchTickets, enrichTicket, enrichAllTickets } from '@/api/tickets';
 import { useSSE } from '@/lib/useSSE';
 import type { Ticket } from '@/types/models';
+import type { Pagination } from '@/types/common';
+
+const TABS = [
+    { label: 'Все', status: '' },
+    { label: 'Новые', status: 'new' },
+    { label: 'AI обработка', status: 'enriching' },
+    { label: 'Обогащённые', status: 'enriched' },
+    { label: 'Маршрутизированы', status: 'routed' },
+];
 
 const STATUS_LABEL: Record<string, string> = {
-    new: 'Новый',
-    enriching: 'AI обрабатывает...',
-    enriched: 'Обогащён',
-    routed: 'Маршрутизирован',
-    open: 'Открыт',
-    progress: 'В работе',
-    resolved: 'Решён',
+    new: 'Новый', enriching: 'AI обработка', enriched: 'Обогащён',
+    routed: 'Маршрутизирован', open: 'Открыт', progress: 'В работе',
+    resolved: 'Решён', closed: 'Закрыт',
 };
 
 const STATUS_STYLE: Record<string, string> = {
@@ -23,60 +30,122 @@ const STATUS_STYLE: Record<string, string> = {
     routed: 'bg-purple-100 text-purple-700',
     open: 'bg-amber-100 text-amber-700',
     progress: 'bg-blue-100 text-blue-700',
-    resolved: 'bg-success/10 text-success',
+    resolved: 'bg-emerald-100 text-emerald-700',
+    closed: 'bg-gray-100 text-gray-500',
 };
 
 export default function TicketsPage() {
+    const [searchParams] = useSearchParams();
     const [tickets, setTickets] = useState<Ticket[]>([]);
+    const [pagination, setPagination] = useState<Pagination | null>(null);
+    const [page, setPage] = useState(1);
+    const [activeTab, setActiveTab] = useState('');
+    const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
+    const [debouncedSearch, setDebouncedSearch] = useState(searchValue);
     const [liveUpdated, setLiveUpdated] = useState<Set<string>>(new Set());
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [openDetail, setOpenDetail] = useState<string | null>(null);
+    const [dropdownId, setDropdownId] = useState<string | null>(null);
+    const [enrichingBulk, setEnrichingBulk] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Debounce search
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchValue), 300);
+        return () => clearTimeout(t);
+    }, [searchValue]);
+
+    // Reset page on filter change
+    useEffect(() => { setPage(1); }, [activeTab, debouncedSearch]);
 
     const loadTickets = useCallback(() => {
-        fetchTickets({ page: 1, per_page: 50 })
-            .then((res: any) => setTickets(Array.isArray(res?.data) ? res.data : []))
+        const params: Record<string, unknown> = { page, per_page: 20 };
+        if (activeTab) params.status = activeTab;
+        if (debouncedSearch) params.search = debouncedSearch;
+
+        fetchTickets(params)
+            .then((res: any) => {
+                setTickets(Array.isArray(res?.data) ? res.data : []);
+                if (res?.pagination) setPagination(res.pagination);
+            })
             .catch(console.error);
-    }, []);
+    }, [page, activeTab, debouncedSearch]);
 
     useEffect(() => { loadTickets(); }, [loadTickets]);
 
-    // SSE: live status updates
+    // Close dropdown on click outside
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setDropdownId(null);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    // SSE live updates
     useSSE((event) => {
         const { ticket_id, status } = event;
-
         setTickets(prev => {
-            const exists = prev.find(t => (t as any).id === ticket_id);
-            if (exists) {
-                return prev.map(t =>
-                    (t as any).id === ticket_id ? { ...t, status } : t
-                );
-            }
-            // New ticket appeared — reload list
+            const exists = prev.find(t => t.id === ticket_id);
+            if (exists) return prev.map(t => t.id === ticket_id ? { ...t, status } : t);
             loadTickets();
             return prev;
         });
-
-        // Flash animation
         setLiveUpdated(prev => new Set(prev).add(ticket_id));
         setTimeout(() => {
-            setLiveUpdated(prev => {
-                const next = new Set(prev);
-                next.delete(ticket_id);
-                return next;
-            });
+            setLiveUpdated(prev => { const next = new Set(prev); next.delete(ticket_id); return next; });
         }, 2000);
     });
 
-    const getStatusStyle = (status: string) =>
-        STATUS_STYLE[status] ?? 'bg-muted text-muted-foreground';
+    const totalPages = pagination?.total_pages || 1;
+    const totalItems = pagination?.total || tickets.length;
 
-    const getStatusLabel = (status: string) =>
-        STATUS_LABEL[status] ?? status;
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
 
-    const getPriorityStyle = (priority: string) => {
-        switch (priority) {
-            case 'high': return 'text-destructive';
-            case 'medium': return 'text-amber-500';
-            default: return 'text-muted-foreground';
+    const toggleSelectAll = () => {
+        if (selectedIds.size === tickets.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(tickets.map(t => t.id)));
         }
+    };
+
+    const handleBulkEnrich = async () => {
+        setEnrichingBulk(true);
+        try {
+            if (selectedIds.size === tickets.length) {
+                await enrichAllTickets();
+            } else {
+                await Promise.all(Array.from(selectedIds).map(id => enrichTicket(id)));
+            }
+            setSelectedIds(new Set());
+            setTimeout(loadTickets, 1500);
+        } catch { /* ignore */ }
+        finally { setEnrichingBulk(false); }
+    };
+
+    const handleSingleEnrich = async (id: string) => {
+        setDropdownId(null);
+        try {
+            await enrichTicket(id);
+            setTimeout(loadTickets, 1500);
+        } catch { /* ignore */ }
+    };
+
+    const pageNumbers = () => {
+        const pages: number[] = [];
+        const start = Math.max(1, page - 2);
+        const end = Math.min(totalPages, page + 2);
+        for (let i = start; i <= end; i++) pages.push(i);
+        return pages;
     };
 
     return (
@@ -85,49 +154,63 @@ export default function TicketsPage() {
             <div className="p-8 space-y-6">
                 {/* Live indicator */}
                 <div className="flex items-center gap-2 text-[12px] font-semibold text-primary">
-                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                    <span className="relative flex w-2 h-2">
+                        <span className="animate-pulse-ring absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                        <span className="relative inline-flex rounded-full w-2 h-2 bg-primary" />
+                    </span>
                     Live — обновления в реальном времени
                 </div>
 
                 {/* Filters Toolbar */}
-                <div className="bg-white border border-border rounded-xl p-4 flex flex-wrap items-center justify-between gap-4">
+                <div className="glass-card rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-card">
                     <div className="flex items-center gap-3">
-                        <button className="flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-[13px] font-semibold hover:border-primary transition-all">
-                            <Filter className="w-4 h-4" />
-                            Фильтры
-                        </button>
                         <div className="flex gap-1 bg-background p-1 rounded-lg border border-border">
-                            {['Все', 'Новые', 'AI обработка', 'Маршрутизированы'].map((tab, i) => (
+                            {TABS.map(tab => (
                                 <button
-                                    key={i}
+                                    key={tab.status}
+                                    onClick={() => setActiveTab(tab.status)}
                                     className={cn(
                                         "px-4 py-1.5 rounded-md text-[13px] font-bold transition-all",
-                                        i === 0 ? "bg-white text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+                                        activeTab === tab.status
+                                            ? "bg-white text-primary shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground"
                                     )}
                                 >
-                                    {tab}
+                                    {tab.label}
                                 </button>
                             ))}
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-background border border-border focus-within:border-primary min-w-[280px]">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-background border border-border focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/5 min-w-[280px] transition-all">
                         <Search className="w-4 h-4 text-muted-foreground" />
-                        <input type="text" placeholder="Поиск по тикетам..." className="bg-transparent border-none outline-none text-[13px] w-full" />
+                        <input
+                            type="text"
+                            placeholder="Поиск по тикетам..."
+                            value={searchValue}
+                            onChange={e => setSearchValue(e.target.value)}
+                            className="bg-transparent border-none outline-none text-[13px] w-full"
+                        />
                     </div>
                 </div>
 
                 {/* Tickets Table */}
-                <div className="bg-white border border-border rounded-xl overflow-hidden shadow-card">
+                <div className="glass-card rounded-xl overflow-hidden shadow-card">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
                             <thead className="bg-[hsl(var(--background))] border-b border-border">
                                 <tr>
-                                    <th className="w-12 px-6 py-4"><input type="checkbox" /></th>
+                                    <th className="w-12 px-6 py-4">
+                                        <input type="checkbox"
+                                            checked={tickets.length > 0 && selectedIds.size === tickets.length}
+                                            onChange={toggleSelectAll}
+                                            className="rounded border-border text-primary focus:ring-primary"
+                                        />
+                                    </th>
                                     <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">ID</th>
                                     <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Тема тикета</th>
                                     <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Статус</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Приоритет</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Менеджер</th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Клиент</th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Канал</th>
                                     <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Дата</th>
                                     <th className="px-6 py-4" />
                                 </tr>
@@ -139,55 +222,67 @@ export default function TicketsPage() {
                                             Нет тикетов
                                         </td>
                                     </tr>
-                                ) : tickets.map((t: any) => {
+                                ) : tickets.map(t => {
                                     const isLive = liveUpdated.has(t.id);
                                     return (
                                         <tr
                                             key={t.id}
                                             className={cn(
                                                 "hover:bg-primary/5 transition-all cursor-pointer group",
-                                                isLive && "bg-primary/10 scale-[1.001] shadow-sm"
+                                                isLive && "animate-flash"
                                             )}
-                                            style={{ transition: 'background 0.4s ease, box-shadow 0.4s ease' }}
+                                            onClick={() => setOpenDetail(t.id)}
                                         >
-                                            <td className="px-6 py-4">
-                                                <input type="checkbox" className="rounded border-border text-primary focus:ring-primary" />
+                                            <td className="px-6 py-4" onClick={e => e.stopPropagation()}>
+                                                <input type="checkbox"
+                                                    checked={selectedIds.has(t.id)}
+                                                    onChange={() => toggleSelect(t.id)}
+                                                    className="rounded border-border text-primary focus:ring-primary"
+                                                />
                                             </td>
                                             <td className="px-6 py-4 text-[12px] font-mono font-bold text-primary">
-                                                {String(t.id).slice(0, 8)}…
+                                                {t.id.slice(0, 8)}…
                                                 {isLive && <Zap className="inline w-3 h-3 ml-1 text-primary animate-bounce" />}
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[13px] font-bold text-foreground line-clamp-1">{t.subject || '—'}</span>
-                                                </div>
+                                                <span className="text-[13px] font-bold text-foreground line-clamp-1">{t.subject || '—'}</span>
                                             </td>
-                                            <td className="px-6 py-4 text-center">
+                                            <td className="px-6 py-4">
                                                 <span className={cn(
-                                                    "px-2.5 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all duration-500",
-                                                    getStatusStyle(t.status)
+                                                    "px-2.5 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap",
+                                                    STATUS_STYLE[t.status] ?? 'bg-muted text-muted-foreground'
                                                 )}>
-                                                    {getStatusLabel(t.status)}
+                                                    {STATUS_LABEL[t.status] ?? t.status}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className={cn("w-1.5 h-1.5 rounded-full", t.priority === 'high' ? 'bg-destructive' : 'bg-amber-500')} />
-                                                    <span className={cn("text-[12px] font-bold", getPriorityStyle(t.priority))}>
-                                                        {t.priority === 'high' ? 'Высокий' : t.priority === 'medium' ? 'Средний' : '—'}
-                                                    </span>
-                                                </div>
+                                            <td className="px-6 py-4 text-[13px] text-foreground/70">
+                                                {t.client_name || '—'}
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-[13px] font-medium text-foreground">{t.manager_id || '—'}</span>
+                                            <td className="px-6 py-4 text-[12px] text-muted-foreground">
+                                                {t.source_channel || '—'}
                                             </td>
                                             <td className="px-6 py-4 text-[12px] text-muted-foreground font-medium">
                                                 {t.created_at ? new Date(t.created_at).toLocaleDateString('ru-RU') : '—'}
                                             </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <button className="p-1.5 rounded-lg text-muted-foreground hover:bg-background hover:text-foreground">
+                                            <td className="px-6 py-4 text-right relative" onClick={e => e.stopPropagation()}>
+                                                <button
+                                                    onClick={() => setDropdownId(dropdownId === t.id ? null : t.id)}
+                                                    className="p-1.5 rounded-lg text-muted-foreground hover:bg-background hover:text-foreground"
+                                                >
                                                     <MoreVertical className="w-4 h-4" />
                                                 </button>
+                                                {dropdownId === t.id && (
+                                                    <div ref={dropdownRef} className="absolute right-6 top-12 bg-white border border-border rounded-xl shadow-layered-lg py-1 z-30 min-w-[180px] animate-fade-in">
+                                                        <button onClick={() => { setOpenDetail(t.id); setDropdownId(null); }}
+                                                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-foreground hover:bg-primary/5">
+                                                            <Eye className="w-4 h-4 text-muted-foreground" /> Подробнее
+                                                        </button>
+                                                        <button onClick={() => handleSingleEnrich(t.id)}
+                                                            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-foreground hover:bg-primary/5">
+                                                            <Sparkles className="w-4 h-4 text-muted-foreground" /> AI обогащение
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </td>
                                         </tr>
                                     );
@@ -196,24 +291,73 @@ export default function TicketsPage() {
                         </table>
                     </div>
 
+                    {/* Footer with pagination */}
                     <div className="px-6 py-4 border-t border-border flex items-center justify-between bg-[hsl(var(--background))]">
                         <span className="text-[12px] text-muted-foreground">
-                            Показано {tickets.length} тикетов
+                            Показано {tickets.length} из {totalItems} | Страница {page} из {totalPages}
                         </span>
-                        <div className="flex items-center gap-2">
-                            <button className="p-2 border border-border rounded-lg text-muted-foreground hover:border-primary disabled:opacity-30">
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                onClick={() => setPage(p => Math.max(1, p - 1))}
+                                disabled={page <= 1}
+                                className="p-2 border border-border rounded-lg text-muted-foreground hover:border-primary disabled:opacity-30 transition-colors"
+                            >
                                 <ChevronLeft className="w-4 h-4" />
                             </button>
-                            <button className="w-9 h-9 flex items-center justify-center rounded-lg text-[13px] font-bold bg-primary text-white shadow-md shadow-primary/20">
-                                1
-                            </button>
-                            <button className="p-2 border border-border rounded-lg text-muted-foreground hover:border-primary">
+                            {pageNumbers().map(n => (
+                                <button
+                                    key={n}
+                                    onClick={() => setPage(n)}
+                                    className={cn(
+                                        "w-9 h-9 flex items-center justify-center rounded-lg text-[13px] font-bold transition-all",
+                                        n === page
+                                            ? "bg-primary text-white shadow-md shadow-primary/20"
+                                            : "text-muted-foreground hover:bg-background border border-border"
+                                    )}
+                                >
+                                    {n}
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                disabled={page >= totalPages}
+                                className="p-2 border border-border rounded-lg text-muted-foreground hover:border-primary disabled:opacity-30 transition-colors"
+                            >
                                 <ChevronRight className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
                 </div>
+
+                {/* Bulk action bar */}
+                {selectedIds.size > 0 && (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-foreground text-white rounded-2xl shadow-layered-lg px-6 py-3.5 flex items-center gap-4 z-40 animate-fade-in-up">
+                        <CheckSquare className="w-5 h-5" />
+                        <span className="text-[13px] font-bold">Выбрано: {selectedIds.size}</span>
+                        <button
+                            onClick={handleBulkEnrich}
+                            disabled={enrichingBulk}
+                            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-[13px] font-bold hover:bg-primary/90 disabled:opacity-50 transition-all"
+                        >
+                            {enrichingBulk ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                            {enrichingBulk ? 'Обогащение...' : `Обогатить (${selectedIds.size})`}
+                        </button>
+                        <button onClick={() => setSelectedIds(new Set())}
+                            className="text-[12px] text-white/60 hover:text-white font-medium transition-colors">
+                            Снять выделение
+                        </button>
+                    </div>
+                )}
             </div>
+
+            {/* Ticket Detail slide-over */}
+            {openDetail && (
+                <TicketDetail
+                    ticketId={openDetail}
+                    onClose={() => setOpenDetail(null)}
+                    onChanged={loadTickets}
+                />
+            )}
         </div>
     );
 }

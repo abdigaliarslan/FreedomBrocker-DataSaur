@@ -1,34 +1,95 @@
+/* ── Ticket ─────────────────────────────────────────────── */
 export interface Ticket {
     id: string;
+    external_id: string | null;
     subject: string;
-    description: string;
-    status: 'new' | 'enriching' | 'enriched' | 'open' | 'progress' | 'resolved' | 'closed' | 'routed' | string;
-    priority: 'low' | 'medium' | 'high';
-    sentiment: 'positive' | 'neutral' | 'negative' | 'unknown';
-    segment: string;
-    type: string;
-    lang: string;
-    manager_id?: string;
-    office_id?: string;
+    body: string;
+    client_name: string | null;
+    client_segment: string | null;
+    source_channel: string | null;
+    status: string;
+    raw_address: string | null;
     created_at: string;
     updated_at: string;
 }
 
-export interface Manager {
+/* ── Ticket AI enrichment ──────────────────────────────── */
+export interface TicketAI {
     id: string;
-    name: string;
-    role: string;
-    office_id: string;
-    active_tickets: number;
-    resolved_tickets: number;
-    rating: number;
+    ticket_id: string;
+    type: string | null;
+    sentiment: string | null;
+    priority_1_10: number | null;
+    lang: string;
+    summary: string | null;
+    recommended_actions: string[] | null;
+    lat: number | null;
+    lon: number | null;
+    geo_status: string;
+    confidence_type: number | null;
+    confidence_sentiment: number | null;
+    confidence_priority: number | null;
+    enriched_at: string | null;
+    created_at: string;
 }
 
+/* ── Ticket Assignment ─────────────────────────────────── */
+export interface TicketAssignment {
+    id: string;
+    ticket_id: string;
+    manager_id: string;
+    business_unit_id: string;
+    assigned_at: string;
+    routing_reason: string | null;
+    is_current: boolean;
+}
+
+/* ── Audit Log ─────────────────────────────────────────── */
+export interface AuditLog {
+    id: string;
+    ticket_id: string;
+    step: string;
+    input_data: unknown;
+    output_data: unknown;
+    decision: string;
+    candidates: unknown;
+    created_at: string;
+}
+
+/* ── Full ticket detail (GET /tickets/:id) ─────────────── */
+export interface TicketWithDetails {
+    ticket: Ticket;
+    ai: TicketAI | null;
+    assignment: TicketAssignment | null;
+    assigned_manager: Manager | null;
+    audit_trail: AuditLog[];
+}
+
+/* ── Manager (with office info from GET /managers) ─────── */
+export interface Manager {
+    id: string;
+    full_name: string;
+    email: string | null;
+    business_unit_id: string;
+    is_vip_skill: boolean;
+    is_chief_spec: boolean;
+    languages: string[];
+    max_load: number;
+    current_load: number;
+    is_active: boolean;
+    created_at: string;
+    office_name: string;
+    office_city: string;
+    utilization_pct: number;
+}
+
+/* ── Office / Business Unit ────────────────────────────── */
 export interface Office {
     id: string;
     name: string;
-    address: string;
     city: string;
-    manager_count: number;
-    active_tickets: number;
+    address: string | null;
+    lat: number | null;
+    lon: number | null;
+    created_at: string;
 }
