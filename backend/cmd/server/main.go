@@ -70,7 +70,7 @@ func main() {
 	aiSvc := service.NewAIService(cfg.OpenAIKey, cfg.OpenAIModel, ticketRepo, routingSvc)
 
 	// Handlers
-	importH := handler.NewImportHandler(importSvc)
+	importH := handler.NewImportHandler(importSvc, aiSvc)
 	callbackH := handler.NewCallbackHandler(ticketRepo, assignmentRepo, routingSvc)
 	ticketH := handler.NewTicketHandler(ticketSvc, aiSvc)
 	managerH := handler.NewManagerHandler(managerSvc)
