@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, ChevronLeft, ChevronRight, MoreVertical, Zap, Sparkles, Eye, RefreshCw, CheckSquare } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, MoreVertical, Zap, Sparkles, Eye, RefreshCw, CheckSquare, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import TicketDetail from '@/components/TicketDetail';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,27 @@ import { fetchTickets, enrichTicket, enrichAllTickets } from '@/api/tickets';
 import { useSSE } from '@/lib/useSSE';
 import type { Ticket } from '@/types/models';
 import type { Pagination } from '@/types/common';
+
+const SEGMENT_TABS = [
+    { label: 'Все клиенты', value: '' },
+    { label: 'VIP', value: 'VIP' },
+    { label: 'Priority', value: 'Priority' },
+    { label: 'Mass', value: 'Mass' },
+];
+
+const SEGMENT_ORDER: Record<string, number> = { VIP: 0, Priority: 1, Mass: 2 };
+
+const SEGMENT_BADGE: Record<string, string> = {
+    VIP: 'bg-amber-100 text-amber-700',
+    Priority: 'bg-purple-100 text-purple-700',
+    Mass: 'bg-slate-100 text-slate-600',
+};
+
+const SEGMENT_ICON: Record<string, string> = {
+    VIP: '👑',
+    Priority: '⭐',
+    Mass: '👤',
+};
 
 const SENTIMENT_TABS = [
     { label: 'Все', value: '' },
@@ -59,6 +80,8 @@ export default function TicketsPage() {
     const [page, setPage] = useState(1);
     const [sentimentFilter, setSentimentFilter] = useState('');
     const [typeFilter, setTypeFilter] = useState('');
+    const [segmentFilter, setSegmentFilter] = useState('');
+    const [segmentSort, setSegmentSort] = useState<'vip_first' | 'mass_first' | ''>('');
     const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
     const [debouncedSearch, setDebouncedSearch] = useState(searchValue);
     const [liveUpdated, setLiveUpdated] = useState<Set<string>>(new Set());
@@ -73,12 +96,13 @@ export default function TicketsPage() {
         return () => clearTimeout(t);
     }, [searchValue]);
 
-    useEffect(() => { setPage(1); }, [sentimentFilter, typeFilter, debouncedSearch]);
+    useEffect(() => { setPage(1); }, [sentimentFilter, typeFilter, segmentFilter, segmentSort, debouncedSearch]);
 
     const loadTickets = useCallback(() => {
         const params: Record<string, unknown> = { page, per_page: 20 };
         if (sentimentFilter) params.sentiment = sentimentFilter;
         if (typeFilter) params.type = typeFilter;
+        if (segmentFilter) params.segment = segmentFilter;
         if (debouncedSearch) params.search = debouncedSearch;
 
         fetchTickets(params)
@@ -87,7 +111,7 @@ export default function TicketsPage() {
                 if (res?.pagination) setPagination(res.pagination);
             })
             .catch(console.error);
-    }, [page, sentimentFilter, typeFilter, debouncedSearch]);
+    }, [page, sentimentFilter, typeFilter, segmentFilter, debouncedSearch]);
 
     useEffect(() => {
         loadTickets();
@@ -149,6 +173,18 @@ export default function TicketsPage() {
         } catch { /* ignore */ }
     };
 
+    const sortedTickets = segmentSort
+        ? [...tickets].sort((a, b) => {
+            const ao = SEGMENT_ORDER[a.client_segment ?? ''] ?? 3;
+            const bo = SEGMENT_ORDER[b.client_segment ?? ''] ?? 3;
+            return segmentSort === 'vip_first' ? ao - bo : bo - ao;
+        })
+        : tickets;
+
+    const cycleSegmentSort = () => {
+        setSegmentSort(s => s === '' ? 'vip_first' : s === 'vip_first' ? 'mass_first' : '');
+    };
+
     const pageNumbers = () => {
         const pages: number[] = [];
         const start = Math.max(1, page - 2);
@@ -199,21 +235,39 @@ export default function TicketsPage() {
                             />
                         </div>
                     </div>
-                    <div className="flex gap-1 bg-background p-1 rounded-lg border border-border w-fit">
-                        {TYPE_TABS.map(tab => (
-                            <button
-                                key={tab.value}
-                                onClick={() => setTypeFilter(tab.value)}
-                                className={cn(
-                                    "px-3 py-1.5 rounded-md text-[12px] font-bold transition-all",
-                                    typeFilter === tab.value
-                                        ? "bg-white text-primary shadow-sm"
-                                        : "text-muted-foreground hover:text-foreground"
-                                )}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex gap-1 bg-background p-1 rounded-lg border border-border">
+                            {TYPE_TABS.map(tab => (
+                                <button
+                                    key={tab.value}
+                                    onClick={() => setTypeFilter(tab.value)}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-md text-[12px] font-bold transition-all",
+                                        typeFilter === tab.value
+                                            ? "bg-white text-primary shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex gap-1 bg-background p-1 rounded-lg border border-border">
+                            {SEGMENT_TABS.map(tab => (
+                                <button
+                                    key={tab.value}
+                                    onClick={() => setSegmentFilter(tab.value)}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-md text-[12px] font-bold transition-all",
+                                        segmentFilter === tab.value
+                                            ? "bg-white text-primary shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    )}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
@@ -233,7 +287,17 @@ export default function TicketsPage() {
                                     <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">ID</th>
                                     <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Тема тикета</th>
                                     <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Статус</th>
-                                    <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Клиент</th>
+                                    <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                                        <button onClick={cycleSegmentSort} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                                            Клиент
+                                            {segmentSort === 'vip_first'
+                                                ? <ArrowUp className="w-3.5 h-3.5 text-primary" />
+                                                : segmentSort === 'mass_first'
+                                                ? <ArrowDown className="w-3.5 h-3.5 text-primary" />
+                                                : <ArrowUpDown className="w-3.5 h-3.5 opacity-40" />
+                                            }
+                                        </button>
+                                    </th>
                                     <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Канал</th>
                                     <th className="px-6 py-4 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Дата</th>
                                     <th className="px-6 py-4" />
@@ -246,7 +310,7 @@ export default function TicketsPage() {
                                             Нет тикетов
                                         </td>
                                     </tr>
-                                ) : tickets.map(t => {
+                                ) : sortedTickets.map(t => {
                                     const isLive = liveUpdated.has(t.id);
                                     return (
                                         <tr
@@ -282,9 +346,9 @@ export default function TicketsPage() {
                                             <td className="px-6 py-4 text-[13px] text-foreground/70">
                                                 <span className="flex items-center gap-1.5">
                                                     {t.client_name || '—'}
-                                                    {(t.client_segment === 'VIP' || t.client_segment === 'Priority') && (
-                                                        <span className="inline-flex items-center gap-0.5 bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
-                                                            👑 VIP
+                                                    {t.client_segment && (
+                                                        <span className={cn("inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold", SEGMENT_BADGE[t.client_segment] ?? 'bg-slate-100 text-slate-600')}>
+                                                            {SEGMENT_ICON[t.client_segment] ?? ''} {t.client_segment}
                                                         </span>
                                                     )}
                                                 </span>
