@@ -64,7 +64,6 @@
 ### Внешние интеграции
 
 ```
-n8n (webhook) ──► POST /api/v1/callbacks/enrichment ──► Routing Pipeline
 OpenAI API   ◄── GPT-4.1-mini (text) + Vision API (изображения)
 Nominatim    ◄── Fallback-геокодирование (OSM)
 ```
@@ -86,7 +85,6 @@ Nominatim    ◄── Fallback-геокодирование (OSM)
 | HTTP-клиент | **Axios** |
 | Таблицы | **@tanstack/react-table v8** |
 | AI | **OpenAI GPT-4.1-mini** + **Vision API** |
-| Автоматизация | **n8n** (опциональный webhook-пайплайн) |
 | Деплой | **Docker Compose** |
 
 ---
@@ -104,7 +102,6 @@ FreedomBrocker-DataSaur/
 │   │   ├── handler/                    # HTTP-обработчики
 │   │   │   ├── ticket_handler.go       # CRUD тикетов + обогащение
 │   │   │   ├── import_handler.go       # Импорт CSV
-│   │   │   ├── callback_handler.go     # Webhook от n8n
 │   │   │   ├── dashboard_handler.go    # Статистика
 │   │   │   ├── manager_handler.go      # Менеджеры
 │   │   │   └── star_handler.go         # AI-ассистент
@@ -365,7 +362,6 @@ GET    /api/v1/offices                   # Список офисов
 
 ### Интеграции
 ```
-POST   /api/v1/callbacks/enrichment      # Webhook от n8n
 POST   /api/v1/star/query               # AI-ассистент
 ```
 
