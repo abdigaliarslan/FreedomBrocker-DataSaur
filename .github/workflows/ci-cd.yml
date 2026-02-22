@@ -73,16 +73,19 @@ jobs:
             cd /root/freedombrocker/FreedomBrocker-DataSaur
             git pull origin main
 
-            # Rebuild and restart backend (force recreate to avoid name conflicts)
-            docker compose up -d --build --force-recreate backend
+            # Rebuild and restart backend only (postgres stays untouched)
+            docker compose up -d --build --force-recreate --no-deps backend
 
             # Build frontend and deploy
             cd frontend
             npm install
             npm run build
-            cp -r dist/* /var/www/html/ 2>/dev/null || mkdir -p /var/www/html && cp -r dist/* /var/www/html/
+            mkdir -p /var/www/html
+            cp -r dist/* /var/www/html/
 
-            # Health check
+            # Health check — try direct port first, then through nginx
             sleep 5
-            curl -sf http://localhost:8080/healthz || exit 1
+            curl -sf http://localhost:8080/healthz \
+              || curl -sf http://localhost/api/v1/managers > /dev/null \
+              || exit 1
             echo "Deploy successful"
