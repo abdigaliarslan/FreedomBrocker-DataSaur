@@ -1,10 +1,20 @@
-# Editor
+# Editor / IDE
 .DS_Store
 *.swp
+.idea/
+.vscode/
+.claude/
+
+# OS temp files
+~$*
+*.tmp
+Thumbs.db
 
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/dist-ssr/
+frontend/.vite/
 
 # Backend
 backend/bin/
@@ -14,3 +24,13 @@ backend/server
 .env
 .env.*
 !.env.example
+
+# Temp directories
+tmp_*/
+
+# Large binary docs
+*.docx
+
+# Python
+__pycache__/
+*.pyc
