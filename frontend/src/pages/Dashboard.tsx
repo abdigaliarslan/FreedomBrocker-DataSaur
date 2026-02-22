@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Ticket, Users, Building2, Sparkles, TrendingUp, TrendingDown, Activity, Clock, ArrowRight, Crown, MapPinOff, Zap } from 'lucide-react';
+import { Ticket, Users, Building2, TrendingUp, TrendingDown, Activity, Clock, ArrowRight, MapPinOff } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { fetchStats, fetchSentiment, fetchTimeline, fetchCategories, fetchManagerLoad } from '@/api/dashboard';
@@ -89,33 +89,10 @@ export default function DashboardPage() {
             color: 'bg-[linear-gradient(135deg,#8B5CF6,#7C3AED)]',
         },
         {
-            icon: Sparkles, label: 'AI-запросы',
-            value: statsData?.ai_processed_count?.toLocaleString() || '0',
-            change: '', up: true,
-            color: 'bg-[linear-gradient(135deg,#F59E0B,#D97706)]',
-        },
-        {
-            icon: Crown, label: 'VIP обращения',
-            value: statsData?.vip_count?.toString() || '0',
-            change: '', up: true,
-            color: 'bg-[linear-gradient(135deg,#F59E0B,#D97706)]',
-        },
-        {
             icon: MapPinOff, label: 'Без геолокации',
             value: statsData?.unknown_geo_count?.toString() || '0',
             change: '', up: true,
             color: 'bg-[linear-gradient(135deg,#EF4444,#DC2626)]',
-        },
-        {
-            icon: Zap, label: 'Скорость AI',
-            value: statsData?.avg_processing_ms
-                ? statsData.avg_processing_ms < 1000
-                    ? `${Math.round(statsData.avg_processing_ms)}ms`
-                    : `${(statsData.avg_processing_ms / 1000).toFixed(1)}s`
-                : '—',
-            change: statsData?.avg_processing_ms && statsData.avg_processing_ms < 1000 ? 'Отлично' : '',
-            up: true,
-            color: 'bg-[linear-gradient(135deg,#06B6D4,#0891B2)]',
         },
     ];
 
@@ -133,13 +110,13 @@ export default function DashboardPage() {
     const categoryChartData = categories.map(c => ({
         label: c.type || 'Другое',
         value: c.count,
-        color: '#00C853',
+        color: '#6366f1',
     }));
 
     const loadChartData = managerLoad.slice(0, 8).map(m => ({
         label: m.manager_name?.split(' ')[0] || '?',
         value: m.utilization_pct,
-        color: m.utilization_pct > 80 ? '#ef4444' : m.utilization_pct > 50 ? '#f59e0b' : '#00C853',
+        color: m.utilization_pct > 80 ? '#ef4444' : m.utilization_pct > 50 ? '#f59e0b' : '#6366f1',
     }));
 
     return (
@@ -192,7 +169,7 @@ export default function DashboardPage() {
 
                     <div className="glass-card rounded-xl p-6 shadow-card animate-fade-in-up">
                         <h3 className="text-[14px] font-bold text-foreground mb-5">Динамика тикетов</h3>
-                        <LineChart data={timelineChartData} />
+                        <LineChart data={timelineChartData} color="#6366f1" />
                     </div>
 
                     <div className="glass-card rounded-xl p-6 shadow-card animate-fade-in-up">
