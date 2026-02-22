@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { queryStar } from '@/api/star';
 import BarChart from '@/components/charts/BarChart';
 import DonutChart from '@/components/charts/DonutChart';
+import LineChart from '@/components/charts/LineChart';
 
 const CHART_COLORS = ['#00C853', '#00BFA5', '#2979FF', '#FF6D00', '#AA00FF', '#F50057', '#FFD600', '#00B8D4'];
 
@@ -51,6 +52,14 @@ function renderChart(data: ChartData) {
             color: CHART_COLORS[i % CHART_COLORS.length],
         }));
         return <DonutChart data={segments} />;
+    }
+
+    if (data.type === 'line') {
+        const items = data.rows.map(r => ({
+            label: String(r[0]),
+            value: Number(r[1]) || 0,
+        }));
+        return <LineChart data={items} color={CHART_COLORS[0]} />;
     }
 
     // Default: table
@@ -120,7 +129,7 @@ export default function StarAssistantPage() {
                 } : undefined,
             };
             setMessages(prev => [...prev, botMsg]);
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
             const botMsg: Message = {
                 from: 'bot',
