@@ -17,6 +17,7 @@ func NewStarHandler(svc *service.StarService) *StarHandler {
 
 type StarRequest struct {
 	Question string `json:"question"`
+	Query    string `json:"query"` // alias for frontend compatibility
 	SQL      string `json:"sql,omitempty"`
 }
 
@@ -27,22 +28,35 @@ func (h *StarHandler) Query(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If SQL is provided directly (from n8n callback), execute it
+	// Accept both "question" and "query" fields
+	question := req.Question
+	if question == "" {
+		question = req.Query
+	}
+
+	// If SQL is provided directly, execute it
 	if req.SQL != "" {
 		result, err := h.svc.ExecuteReadOnlySQL(r.Context(), req.SQL)
 		if err != nil {
 			RespondError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		result.Question = req.Question
+		result.Question = question
 		RespondOK(w, result)
 		return
 	}
 
-	// If only question is provided, would forward to n8n
-	// For now, return a placeholder
-	RespondOK(w, service.StarQueryResponse{
-		Question:   req.Question,
-		AnswerText: "Star Task agent is processing your question. Please wait for the n8n callback.",
-	})
+	if question == "" {
+		RespondError(w, http.StatusBadRequest, "question is required")
+		return
+	}
+
+	// AI-powered path: generate SQL from natural language via OpenAI
+	result, err := h.svc.QueryWithAI(r.Context(), question)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	RespondOK(w, result)
 }

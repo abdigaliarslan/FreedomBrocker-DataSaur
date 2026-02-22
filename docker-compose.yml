@@ -25,7 +25,8 @@ services:
       APP_PORT: "8080"
       DATABASE_URL: "postgres://fire_user:fire_pass_2026@postgres:5432/fire_db?sslmode=disable"
       MIGRATIONS_DIR: "/migrations"
-      N8N_WEBHOOK_URL: "https://n8n.documentolog.kz/webhook/fire-ticket"
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      OPENAI_MODEL: "gpt-4.1-mini"
       CORS_ORIGINS: "http://localhost:5173"
     ports:
       - "8080:8080"

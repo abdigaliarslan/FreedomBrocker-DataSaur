@@ -66,7 +66,7 @@ func main() {
 	ticketSvc := service.NewTicketService(ticketRepo, assignmentRepo, auditRepo)
 	managerSvc := service.NewManagerService(managerRepo, buRepo)
 	dashboardSvc := service.NewDashboardService(pool)
-	starSvc := service.NewStarService(pool, cfg.N8NWebhookURL)
+	starSvc := service.NewStarService(pool, cfg.OpenAIKey, cfg.OpenAIModel)
 
 	// Handlers
 	importH := handler.NewImportHandler(importSvc, cfg.N8NWebhookURL)
