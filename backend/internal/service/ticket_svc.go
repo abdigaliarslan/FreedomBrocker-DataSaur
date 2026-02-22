@@ -102,6 +102,10 @@ func (s *TicketService) ListByManager(ctx context.Context, managerID uuid.UUID) 
 	return s.ticketRepo.ListByManager(ctx, managerID)
 }
 
+func (s *TicketService) ListMapPoints(ctx context.Context) ([]domain.TicketMapPoint, error) {
+	return s.ticketRepo.ListMapPoints(ctx)
+}
+
 // haversineKm returns the great-circle distance in kilometres between two lat/lon points.
 func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
 	const R = 6371.0

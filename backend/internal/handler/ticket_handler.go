@@ -24,6 +24,15 @@ func NewTicketHandler(svc *service.TicketService, ai *service.AIService) *Ticket
 	return &TicketHandler{svc: svc, ai: ai}
 }
 
+func (h *TicketHandler) MapPoints(w http.ResponseWriter, r *http.Request) {
+	points, err := h.svc.ListMapPoints(r.Context())
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	RespondJSON(w, http.StatusOK, map[string]interface{}{"data": points})
+}
+
 func (h *TicketHandler) List(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))

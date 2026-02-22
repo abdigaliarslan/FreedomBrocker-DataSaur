@@ -65,6 +65,19 @@ type TicketWithDetails struct {
 	DistanceKm *float64           `json:"distance_km"` // Haversine distance ticket→office (km)
 }
 
+// TicketMapPoint is a lightweight struct for the map overview endpoint.
+type TicketMapPoint struct {
+	ID         uuid.UUID `json:"id"`
+	Subject    string    `json:"subject"`
+	ClientName *string   `json:"client_name"`
+	Lat        float64   `json:"lat"`
+	Lon        float64   `json:"lon"`
+	Type       *string   `json:"type"`
+	Sentiment  *string   `json:"sentiment"`
+	Priority   *int      `json:"priority_1_10"`
+	Status     string    `json:"status"`
+}
+
 // EnrichmentResult is the payload from n8n callback.
 type EnrichmentResult struct {
 	TicketID            uuid.UUID `json:"ticket_id"`

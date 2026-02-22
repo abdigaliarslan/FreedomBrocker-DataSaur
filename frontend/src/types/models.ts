@@ -89,6 +89,19 @@ export interface Manager {
     utilization_pct: number;
 }
 
+/* ── Ticket map point (GET /tickets/map) ───────────────── */
+export interface TicketMapPoint {
+    id: string;
+    subject: string;
+    client_name: string | null;
+    lat: number;
+    lon: number;
+    type: string | null;
+    sentiment: string | null;
+    priority_1_10: number | null;
+    status: string;
+}
+
 /* ── Office / Business Unit ────────────────────────────── */
 export interface Office {
     id: string;

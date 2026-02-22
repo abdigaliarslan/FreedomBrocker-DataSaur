@@ -4,6 +4,7 @@ import {
     Ticket,
     Users,
     Building2,
+    Map,
     Sparkles,
     Upload,
     ChevronLeft,
@@ -21,6 +22,7 @@ const navItems = [
     { to: '/tickets', icon: Ticket, label: 'Тикеты' },
     { to: '/managers', icon: Users, label: 'Менеджеры' },
     { to: '/offices', icon: Building2, label: 'Офисы' },
+    { to: '/map', icon: Map, label: 'Карта' },
 ];
 
 const toolItems = [

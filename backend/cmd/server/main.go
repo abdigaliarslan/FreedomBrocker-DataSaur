@@ -105,6 +105,7 @@ func main() {
 
 		// Tickets
 		r.Get("/tickets", ticketH.List)
+		r.Get("/tickets/map", ticketH.MapPoints)
 		r.Get("/tickets/{id}", ticketH.Get)
 		r.Patch("/tickets/{id}/status", ticketH.UpdateStatus)
 		r.Post("/tickets/{id}/enrich", ticketH.Enrich)

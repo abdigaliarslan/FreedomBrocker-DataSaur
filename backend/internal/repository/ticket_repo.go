@@ -229,6 +229,36 @@ func (r *TicketRepo) UpsertAI(ctx context.Context, ai *domain.TicketAI) error {
 	return err
 }
 
+// ListMapPoints returns all tickets that have known coordinates (from ticket_ai).
+func (r *TicketRepo) ListMapPoints(ctx context.Context) ([]domain.TicketMapPoint, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT t.id, t.subject, t.client_name, ta.lat, ta.lon,
+		       ta.type, ta.sentiment, ta.priority_1_10, t.status
+		FROM tickets t
+		JOIN ticket_ai ta ON ta.ticket_id = t.id
+		WHERE ta.lat IS NOT NULL AND ta.lon IS NOT NULL
+		ORDER BY t.created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var points []domain.TicketMapPoint
+	for rows.Next() {
+		var p domain.TicketMapPoint
+		if err := rows.Scan(&p.ID, &p.Subject, &p.ClientName, &p.Lat, &p.Lon,
+			&p.Type, &p.Sentiment, &p.Priority, &p.Status); err != nil {
+			return nil, err
+		}
+		points = append(points, p)
+	}
+	if points == nil {
+		points = []domain.TicketMapPoint{}
+	}
+	return points, nil
+}
+
 // GetResolvedCity looks up geo_cache for a previously geocoded raw address.
 // Returns nil, nil when the address is not in cache (not an error).
 func (r *TicketRepo) GetResolvedCity(ctx context.Context, rawAddress string) (*string, error) {
