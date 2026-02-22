@@ -228,3 +228,16 @@ func (r *TicketRepo) UpsertAI(ctx context.Context, ai *domain.TicketAI) error {
 	)
 	return err
 }
+
+// GetResolvedCity looks up geo_cache for a previously geocoded raw address.
+// Returns nil, nil when the address is not in cache (not an error).
+func (r *TicketRepo) GetResolvedCity(ctx context.Context, rawAddress string) (*string, error) {
+	var city *string
+	err := r.pool.QueryRow(ctx,
+		`SELECT resolved_city FROM geo_cache WHERE raw_address = $1`, rawAddress,
+	).Scan(&city)
+	if err != nil {
+		return nil, nil // not cached — treat as not-found, not an error
+	}
+	return city, nil
+}

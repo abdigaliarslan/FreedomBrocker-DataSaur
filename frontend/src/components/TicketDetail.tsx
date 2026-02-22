@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Sparkles, User, MapPin, Clock, Loader2, AlertCircle, ChevronRight, ShieldAlert, Image } from 'lucide-react';
+import { X, Sparkles, User, MapPin, MapPinOff, Route, Clock, Loader2, AlertCircle, ChevronRight, ShieldAlert, Image } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fetchTicketDetail, enrichTicket, updateTicketStatus } from '@/api/tickets';
 import type { TicketWithDetails } from '@/types/models';
@@ -120,8 +120,27 @@ export default function TicketDetail({ ticketId, onClose, onChanged }: Props) {
                             )}
                             <p className="text-[13px] text-foreground/80 mt-3 whitespace-pre-wrap leading-relaxed">{t.body}</p>
                             {t.raw_address && (
-                                <div className="flex items-center gap-1.5 mt-2 text-[12px] text-muted-foreground">
-                                    <MapPin className="w-3.5 h-3.5 text-primary" /> {t.raw_address}
+                                <div className="mt-2 space-y-1.5">
+                                    <div className="flex items-start gap-1.5 text-[12px] text-muted-foreground">
+                                        <MapPin className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+                                        <span>{t.raw_address}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-wrap pl-5">
+                                        {detail?.geo_city ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                <MapPin className="w-2.5 h-2.5" /> {detail.geo_city}
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                                <MapPinOff className="w-2.5 h-2.5" /> Неизвестен город
+                                            </span>
+                                        )}
+                                        {detail?.distance_km != null && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                                <Route className="w-2.5 h-2.5" /> {detail.distance_km.toFixed(1)} км до офиса
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                             {t.attachments && (

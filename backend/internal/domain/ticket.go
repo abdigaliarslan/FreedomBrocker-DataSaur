@@ -56,11 +56,13 @@ type TicketListFilter struct {
 }
 
 type TicketWithDetails struct {
-	Ticket     Ticket            `json:"ticket"`
-	AI         *TicketAI         `json:"ai"`
-	Assignment *TicketAssignment `json:"assignment"`
+	Ticket     Ticket             `json:"ticket"`
+	AI         *TicketAI          `json:"ai"`
+	Assignment *TicketAssignment  `json:"assignment"`
 	Manager    *ManagerWithOffice `json:"assigned_manager"`
-	AuditTrail []AuditLog        `json:"audit_trail"`
+	AuditTrail []AuditLog         `json:"audit_trail"`
+	GeoCity    *string            `json:"geo_city"`    // resolved city from geo_cache
+	DistanceKm *float64           `json:"distance_km"` // Haversine distance ticket→office (km)
 }
 
 // EnrichmentResult is the payload from n8n callback.

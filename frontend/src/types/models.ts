@@ -65,6 +65,8 @@ export interface TicketWithDetails {
     assignment: TicketAssignment | null;
     assigned_manager: Manager | null;
     audit_trail: AuditLog[];
+    geo_city: string | null;    // resolved city from geo_cache
+    distance_km: number | null; // Haversine distance ticket→office (km)
 }
 
 /* ── Manager (with office info from GET /managers) ─────── */

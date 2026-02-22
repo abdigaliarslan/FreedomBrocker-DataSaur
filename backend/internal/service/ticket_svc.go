@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"math"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -49,7 +50,8 @@ func (s *TicketService) GetWithDetails(ctx context.Context, id uuid.UUID) (*doma
 	}
 	result.Assignment = assignment
 
-	// Populate assigned manager details
+	// Populate assigned manager details; keep bu for distance calc below
+	var officeLat, officeLon *float64
 	if assignment != nil {
 		manager, err := s.managerRepo.GetByID(ctx, assignment.ManagerID)
 		if err == nil {
@@ -58,12 +60,27 @@ func (s *TicketService) GetWithDetails(ctx context.Context, id uuid.UUID) (*doma
 			if err == nil {
 				mwo.OfficeName = bu.Name
 				mwo.OfficeCity = bu.City
+				officeLat = bu.Lat
+				officeLon = bu.Lon
 			}
 			if manager.MaxLoad > 0 {
 				mwo.Utilization = float64(manager.CurrentLoad) / float64(manager.MaxLoad) * 100
 			}
 			result.Manager = mwo
 		}
+	}
+
+	// Resolved city from geo_cache
+	if result.Ticket.RawAddress != nil {
+		city, _ := s.ticketRepo.GetResolvedCity(ctx, *result.Ticket.RawAddress)
+		result.GeoCity = city
+	}
+
+	// Distance: ticket coordinates → assigned office coordinates
+	if result.AI != nil && result.AI.Lat != nil && result.AI.Lon != nil &&
+		officeLat != nil && officeLon != nil {
+		dist := haversineKm(*result.AI.Lat, *result.AI.Lon, *officeLat, *officeLon)
+		result.DistanceKm = &dist
 	}
 
 	// Audit trail
@@ -82,4 +99,15 @@ func (s *TicketService) UpdateStatus(ctx context.Context, id uuid.UUID, status s
 
 func (s *TicketService) ListByManager(ctx context.Context, managerID uuid.UUID) ([]domain.Ticket, error) {
 	return s.ticketRepo.ListByManager(ctx, managerID)
+}
+
+// haversineKm returns the great-circle distance in kilometres between two lat/lon points.
+func haversineKm(lat1, lon1, lat2, lon2 float64) float64 {
+	const R = 6371.0
+	dLat := (lat2 - lat1) * math.Pi / 180
+	dLon := (lon2 - lon1) * math.Pi / 180
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*
+			math.Sin(dLon/2)*math.Sin(dLon/2)
+	return R * 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 }
