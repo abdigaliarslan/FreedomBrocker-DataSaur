@@ -99,6 +99,15 @@ func extractCityFromAddress(rawAddress *string) *string {
 	// 3rd part is city from CSV "населённый пункт"
 	if len(parts) >= 3 {
 		city := strings.TrimSpace(parts[2])
+		cityLower := strings.ToLower(city)
+		// Skip if it looks like a district/block, not a city name
+		if city != "" && !strings.HasPrefix(cityLower, "мкр") && !strings.HasPrefix(cityLower, "квартал") {
+			return &city
+		}
+	}
+	// If 3rd part is a district (мкр...), try 2nd part as city
+	if len(parts) >= 2 {
+		city := strings.TrimSpace(parts[1])
 		if city != "" {
 			return &city
 		}
