@@ -26,7 +26,6 @@ func NewStarService(pool *pgxpool.Pool, apiKey, model string) *StarService {
 		pool:       pool,
 		apiKey:     apiKey,
 		model:      model,
-		httpClient: &http.Client{Timeout: 60 * time.Second},
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
@@ -120,10 +119,10 @@ const starSystemPrompt = `Ты — AI-аналитик Freedom Broker. Гене�
 
 Правила генерации SQL:
 - ТОЛЬКО SELECT запросы! Никаких INSERT/UPDATE/DELETE/DROP/ALTER/TRUNCATE
-- **ВАЖНО**: Если ты используешь колонки из разных таблиц, ты ОБЯЗАН их правильно связать (JOIN):
-  * Чтобы использовать `ticket_ai`, сделай `JOIN ticket_ai ON tickets.id = ticket_ai.ticket_id`
-  * Чтобы использовать `business_units` (офисы), сделай `JOIN ticket_assignment ON tickets.id = ticket_assignment.ticket_id JOIN business_units ON business_units.id = ticket_assignment.business_unit_id` (используй `is_current = true`)
-  * Чтобы использовать `managers`, сделай `JOIN ticket_assignment ON tickets.id = ticket_assignment.ticket_id JOIN managers ON managers.id = ticket_assignment.manager_id`
+- ВАЖНО: Если ты используешь колонки из разных таблиц, ты ОБЯЗАН их правильно связать (JOIN):
+  * Чтобы использовать ticket_ai, сделай JOIN ticket_ai ON tickets.id = ticket_ai.ticket_id
+  * Чтобы использовать business_units (офисы), сделай JOIN ticket_assignment ON tickets.id = ticket_assignment.ticket_id JOIN business_units ON business_units.id = ticket_assignment.business_unit_id (используй is_current = true)
+  * Чтобы использовать managers, сделай JOIN ticket_assignment ON tickets.id = ticket_assignment.ticket_id JOIN managers ON managers.id = ticket_assignment.manager_id
 - Для офисов/городов: используй business_units.city
 - Для типов обращений: используй ticket_ai.type. Используй ILIKE и учитывай разные варианты (например, 'Жалоба' или 'Complaint')
 - Для менеджеров и нагрузки: используй managers.current_load, managers.max_load
@@ -133,7 +132,7 @@ const starSystemPrompt = `Ты — AI-аналитик Freedom Broker. Гене�
   * Позитивный: sentiment ILIKE 'позитив%' OR sentiment ILIKE 'positive%'
   * Нейтральный: sentiment ILIKE 'нейтраль%' OR sentiment ILIKE 'neutral%'
 - Для VIP клиентов: tickets.client_segment ILIKE 'VIP'
-- **Округление**: Для средних значений (AVG) и других дробных чисел ВСЕГДА используй `ROUND(..., 1)` для округления до одного знака после запятой (например, `ROUND(AVG(priority_1_10), 1)`).
+- Округление: Для средних значений (AVG) и других дробных чисел ВСЕГДА используй ROUND(..., 1) для округления до одного знака после запятой (например, ROUND(AVG(priority_1_10), 1)).
 
 Правила выбора chart_type:
 - "number" — для одного числового ответа (SELECT COUNT(*), AVG(...), SUM(...))
@@ -150,39 +149,11 @@ const starSystemPrompt = `Ты — AI-аналитик Freedom Broker. Гене�
 - Используй алиасы колонок на русском: AS "Тип", AS "Количество" и т.д.
 - Всегда используй ORDER BY для упорядочивания результатов`
 
-type openAIMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type openAIResponse struct {
-	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
-	Error *struct {
-		Message string `json:"message"`
-	} `json:"error"`
-}
-
 type starAIRequest struct {
 	Model       string          `json:"model"`
 	Messages    []openAIMessage `json:"messages"`
 	Temperature float64         `json:"temperature"`
 }
-Правила:
-- ТОЛЬКО SELECT запросы, без INSERT/UPDATE/DELETE/DROP
-- Используй JOIN когда нужно связать таблицы
-- Для офисов/городов: используй business_units.city
-- chart_type="number" для одного числового ответа (SELECT COUNT/AVG/SUM)
-- chart_type="bar" для сравнения категорий
-- chart_type="pie" для долей/процентов
-- chart_type="line" для временных данных
-- chart_type="table" если результат лучше показать таблицей
-- answer_text — краткий ответ на вопрос на русском
-- Для первых 2 колонок: 1-я = label/категория, 2-я = число (для графиков)
-- LIMIT 20 для списков`
 
 type starAIResponse struct {
 	SQL        string `json:"sql"`
@@ -289,13 +260,6 @@ func (s *StarService) callStarAIWithMessages(ctx context.Context, messages []ope
 		Model:       s.model,
 		Messages:    messages,
 		Temperature: 0,
-	// Call OpenAI to generate SQL
-	reqBody := openAIRequest{
-		Model: s.model,
-		Messages: []openAIMessage{
-			{Role: "system", Content: starSystemPrompt},
-			{Role: "user", Content: question},
-		},
 	}
 
 	bodyBytes, _ := json.Marshal(reqBody)
@@ -309,7 +273,6 @@ func (s *StarService) callStarAIWithMessages(ctx context.Context, messages []ope
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI request failed: %w", err)
-		return nil, fmt.Errorf("OpenAI request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -317,7 +280,6 @@ func (s *StarService) callStarAIWithMessages(ctx context.Context, messages []ope
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("OpenAI API вернул статус %d: %s", resp.StatusCode, string(respBytes))
-		return nil, fmt.Errorf("OpenAI status %d: %s", resp.StatusCode, string(respBytes))
 	}
 
 	var openAIResp openAIResponse
@@ -351,61 +313,6 @@ func (s *StarService) callStarAIWithMessages(ctx context.Context, messages []ope
 	return &aiResp, nil
 }
 
-// stripCodeFences removes markdown code fences from AI response.
-func stripCodeFences(s string) string {
-	if len(s) > 6 && s[:3] == "```" {
-		i := 3
-		for i < len(s) && s[i] != '\n' {
-			i++
-		}
-		if i < len(s) {
-			s = s[i+1:]
-		}
-		if len(s) > 3 && s[len(s)-3:] == "```" {
-			s = s[:len(s)-3]
-		}
-	}
-	return s
-		return nil, fmt.Errorf("parse OpenAI response: %w", err)
-	}
-
-	if openAIResp.Error != nil {
-		return nil, fmt.Errorf("OpenAI error: %s", openAIResp.Error.Message)
-	}
-
-	if len(openAIResp.Choices) == 0 {
-		return nil, fmt.Errorf("no choices in OpenAI response")
-	}
-
-	content := stripCodeFences(openAIResp.Choices[0].Message.Content)
-
-	var aiResp starAIResponse
-	if err := json.Unmarshal([]byte(content), &aiResp); err != nil {
-		return nil, fmt.Errorf("parse AI JSON: %w (raw: %s)", err, content)
-	}
-
-	log.Info().Str("question", question).Str("sql", aiResp.SQL).Str("chart", aiResp.ChartType).Msg("Star Task AI generated SQL")
-
-	// Execute the generated SQL
-	result, err := s.ExecuteReadOnlySQL(ctx, aiResp.SQL)
-	if err != nil {
-		return &StarQueryResponse{
-			Question:   question,
-			SQL:        aiResp.SQL,
-			AnswerText: fmt.Sprintf("Ошибка выполнения запроса: %v", err),
-			ChartType:  "table",
-			Error:      err.Error(),
-		}, nil
-	}
-
-	result.Question = question
-	result.ChartType = aiResp.ChartType
-	result.AnswerText = aiResp.AnswerText
-	result.XLabel = aiResp.XLabel
-	result.YLabel = aiResp.YLabel
-
-	return result, nil
-}
 
 // ExecuteReadOnlySQL safely executes a read-only SQL query.
 func (s *StarService) ExecuteReadOnlySQL(ctx context.Context, sql string) (*StarQueryResponse, error) {

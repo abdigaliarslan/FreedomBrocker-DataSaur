@@ -70,10 +70,9 @@ func (s *TicketService) GetWithDetails(ctx context.Context, id uuid.UUID) (*doma
 		}
 	}
 
-	// Resolved city from geo_cache
+	// Resolved city from raw address (deterministic parse, no DB lookup needed)
 	if result.Ticket.RawAddress != nil {
-		city, _ := s.ticketRepo.GetResolvedCity(ctx, *result.Ticket.RawAddress)
-		result.GeoCity = city
+		result.GeoCity = extractCityFromAddress(result.Ticket.RawAddress)
 	}
 
 	// Distance: ticket coordinates → assigned office coordinates
