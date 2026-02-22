@@ -112,7 +112,10 @@ const starSystemPrompt = `Ты — AI-аналитик Freedom Broker. Гене�
 
 Правила генерации SQL:
 - ТОЛЬКО SELECT запросы! Никаких INSERT/UPDATE/DELETE/DROP/ALTER/TRUNCATE
-- Используй JOIN когда нужно связать таблицы
+- **ВАЖНО**: Если ты используешь колонки из разных таблиц, ты ОБЯЗАН их правильно связать (JOIN):
+  * Чтобы использовать `ticket_ai`, сделай `JOIN ticket_ai ON tickets.id = ticket_ai.ticket_id`
+  * Чтобы использовать `business_units` (офисы), сделай `JOIN ticket_assignment ON tickets.id = ticket_assignment.ticket_id JOIN business_units ON business_units.id = ticket_assignment.business_unit_id` (используй `is_current = true`)
+  * Чтобы использовать `managers`, сделай `JOIN ticket_assignment ON tickets.id = ticket_assignment.ticket_id JOIN managers ON managers.id = ticket_assignment.manager_id`
 - Для офисов/городов: используй business_units.city
 - Для типов обращений: используй ticket_ai.type. Используй ILIKE и учитывай разные варианты (например, 'Жалоба' или 'Complaint')
 - Для менеджеров и нагрузки: используй managers.current_load, managers.max_load
@@ -122,7 +125,6 @@ const starSystemPrompt = `Ты — AI-аналитик Freedom Broker. Гене�
   * Позитивный: sentiment ILIKE 'позитив%' OR sentiment ILIKE 'positive%'
   * Нейтральный: sentiment ILIKE 'нейтраль%' OR sentiment ILIKE 'neutral%'
 - Для VIP клиентов: tickets.client_segment ILIKE 'VIP'
-- Для назначений: связывай ticket_assignment с managers и business_units
 
 Правила выбора chart_type:
 - "number" — для одного числового ответа (SELECT COUNT(*), AVG(...), SUM(...))
