@@ -84,6 +84,8 @@ export interface Manager {
     created_at: string;
     office_name: string;
     office_city: string;
+    office_lat: number | null;
+    office_lon: number | null;
     utilization_pct: number;
 }
 

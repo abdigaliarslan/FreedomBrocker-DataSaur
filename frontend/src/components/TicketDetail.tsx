@@ -1,8 +1,31 @@
 import { useState, useEffect } from 'react';
 import { X, Sparkles, User, MapPin, MapPinOff, Route, Clock, Loader2, AlertCircle, ChevronRight, ShieldAlert, Image } from 'lucide-react';
+import 'leaflet/dist/leaflet.css';
+import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import { cn } from '@/lib/utils';
 import { fetchTicketDetail, enrichTicket, updateTicketStatus } from '@/api/tickets';
 import type { TicketWithDetails } from '@/types/models';
+
+const ticketIcon = L.divIcon({
+    html: `<div style="width:14px;height:14px;background:#f97316;border:2px solid white;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
+    className: '',
+    iconAnchor: [7, 7],
+});
+const officeIcon = L.divIcon({
+    html: `<div style="width:14px;height:14px;background:#3b82f6;border:2px solid white;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
+    className: '',
+    iconAnchor: [7, 7],
+});
+
+function FitBounds({ points }: { points: [number, number][] }) {
+    const map = useMap();
+    useEffect(() => {
+        if (points.length === 1) map.setView(points[0], 11);
+        else if (points.length >= 2) map.fitBounds(points as L.LatLngBoundsExpression, { padding: [40, 40] });
+    }, []);
+    return null;
+}
 
 interface Props {
     ticketId: string;
@@ -142,6 +165,35 @@ export default function TicketDetail({ ticketId, onClose, onChanged }: Props) {
                                             </span>
                                         )}
                                     </div>
+                                </div>
+                            )}
+                            {ai?.lat && ai?.lon && (
+                                <div className="mt-3 rounded-xl overflow-hidden border border-[hsl(var(--border))]" style={{ height: 200 }}>
+                                    <MapContainer
+                                        center={[ai.lat, ai.lon]}
+                                        zoom={11}
+                                        style={{ height: '100%', width: '100%' }}
+                                        zoomControl={false}
+                                        attributionControl={false}
+                                    >
+                                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                                        <Marker position={[ai.lat, ai.lon]} icon={ticketIcon} />
+                                        {mgr?.office_lat && mgr?.office_lon && (
+                                            <>
+                                                <Marker position={[mgr.office_lat, mgr.office_lon]} icon={officeIcon} />
+                                                <Polyline
+                                                    positions={[[ai.lat, ai.lon], [mgr.office_lat, mgr.office_lon]]}
+                                                    color="#3b82f6"
+                                                    weight={2}
+                                                    dashArray="5,5"
+                                                />
+                                            </>
+                                        )}
+                                        <FitBounds points={[
+                                            [ai.lat, ai.lon],
+                                            ...(mgr?.office_lat && mgr?.office_lon ? [[mgr.office_lat, mgr.office_lon] as [number, number]] : [])
+                                        ]} />
+                                    </MapContainer>
                                 </div>
                             )}
                             {t.attachments && (

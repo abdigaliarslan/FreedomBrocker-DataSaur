@@ -22,7 +22,9 @@ type Manager struct {
 
 type ManagerWithOffice struct {
 	Manager
-	OfficeName string  `json:"office_name"`
-	OfficeCity string  `json:"office_city"`
-	Utilization float64 `json:"utilization_pct"`
+	OfficeName  string   `json:"office_name"`
+	OfficeCity  string   `json:"office_city"`
+	OfficeLat   *float64 `json:"office_lat"`
+	OfficeLon   *float64 `json:"office_lon"`
+	Utilization float64  `json:"utilization_pct"`
 }

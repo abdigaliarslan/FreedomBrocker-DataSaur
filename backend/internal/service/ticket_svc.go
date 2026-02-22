@@ -60,6 +60,8 @@ func (s *TicketService) GetWithDetails(ctx context.Context, id uuid.UUID) (*doma
 			if err == nil {
 				mwo.OfficeName = bu.Name
 				mwo.OfficeCity = bu.City
+				mwo.OfficeLat = bu.Lat
+				mwo.OfficeLon = bu.Lon
 				officeLat = bu.Lat
 				officeLon = bu.Lon
 			}
