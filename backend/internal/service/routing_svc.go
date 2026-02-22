@@ -37,8 +37,13 @@ func NewRoutingService(
 
 // RouteTicket runs the full 4-step routing pipeline for a ticket.
 func (s *RoutingService) RouteTicket(ctx context.Context, ticket *domain.Ticket, ai *domain.TicketAI) error {
-	// Step 1: Geo filter
-	geoResult, err := s.geoFilter.Resolve(ctx, ticket.ID, ai.Lat, ai.Lon, ai.GeoStatus)
+	// Step 1: Geo filter — extract city hint from raw address for fallback matching
+	rawCityPtr := extractCityFromAddress(ticket.RawAddress)
+	rawCity := ""
+	if rawCityPtr != nil {
+		rawCity = *rawCityPtr
+	}
+	geoResult, err := s.geoFilter.Resolve(ctx, ticket.ID, ai.Lat, ai.Lon, ai.GeoStatus, rawCity)
 	if err != nil {
 		return fmt.Errorf("geo filter: %w", err)
 	}
