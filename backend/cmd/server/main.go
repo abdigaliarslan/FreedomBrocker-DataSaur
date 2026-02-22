@@ -73,7 +73,7 @@ func main() {
 	importH := handler.NewImportHandler(importSvc, aiSvc)
 	callbackH := handler.NewCallbackHandler(ticketRepo, assignmentRepo, routingSvc)
 	ticketH := handler.NewTicketHandler(ticketSvc, aiSvc)
-	managerH := handler.NewManagerHandler(managerSvc)
+	managerH := handler.NewManagerHandler(managerSvc, ticketSvc)
 	dashboardH := handler.NewDashboardHandler(dashboardSvc)
 	starH := handler.NewStarHandler(starSvc)
 
@@ -113,6 +113,7 @@ func main() {
 		// Managers
 		r.Get("/managers", managerH.List)
 		r.Get("/managers/{id}", managerH.Get)
+		r.Get("/managers/{id}/tickets", managerH.GetTickets)
 
 		// Offices
 		r.Get("/offices", managerH.ListOffices)

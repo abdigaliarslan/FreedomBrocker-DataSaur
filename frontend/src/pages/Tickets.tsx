@@ -9,17 +9,23 @@ import { useSSE } from '@/lib/useSSE';
 import type { Ticket } from '@/types/models';
 import type { Pagination } from '@/types/common';
 
-const TABS = [
-    { label: 'Все', status: '' },
-    { label: 'Новые', status: 'new' },
-    { label: 'AI обработка', status: 'enriching' },
-    { label: 'Обогащённые', status: 'enriched' },
-    { label: 'Маршрутизированы', status: 'routed' },
-    { label: 'Решённые', status: 'resolved' },
+const SENTIMENT_TABS = [
+    { label: 'Все', value: '' },
+    { label: 'Позитивный', value: 'Позитивный' },
+    { label: 'Негативный', value: 'Негативный' },
+    { label: 'Нейтральный', value: 'Нейтральный' },
+];
+
+const TYPE_TABS = [
+    { label: 'Все типы', value: '' },
+    { label: 'Жалоба', value: 'Жалоба' },
+    { label: 'Спам', value: 'Спам' },
+    { label: 'Неработоспособность', value: 'Неработоспособность' },
+    { label: 'Смена данных', value: 'Change Data' },
 ];
 
 const STATUS_LABEL: Record<string, string> = {
-    new: 'Новый', enriching: 'AI обработка', enriched: 'Обогащён',
+    new: 'Новый', enriching: 'Анализируется', enriched: 'Обработан',
     routed: 'Маршрутизирован', open: 'Открыт', progress: 'В работе',
     resolved: 'Решён', closed: 'Закрыт',
 };
@@ -35,12 +41,24 @@ const STATUS_STYLE: Record<string, string> = {
     closed: 'bg-gray-100 text-gray-500',
 };
 
+function formatChannel(ch: string | null): string {
+    if (!ch) return '—';
+    const map: Record<string, string> = {
+        email: 'Эл. почта', Email: 'Эл. почта',
+        call: 'Телефон', phone: 'Телефон', Call: 'Телефон',
+        web: 'Портал', Web: 'Портал', portal: 'Портал',
+        chat: 'Чат', Chat: 'Чат',
+    };
+    return map[ch] || ch;
+}
+
 export default function TicketsPage() {
     const [searchParams] = useSearchParams();
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [pagination, setPagination] = useState<Pagination | null>(null);
     const [page, setPage] = useState(1);
-    const [activeTab, setActiveTab] = useState('');
+    const [sentimentFilter, setSentimentFilter] = useState('');
+    const [typeFilter, setTypeFilter] = useState('');
     const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
     const [debouncedSearch, setDebouncedSearch] = useState(searchValue);
     const [liveUpdated, setLiveUpdated] = useState<Set<string>>(new Set());
@@ -50,18 +68,17 @@ export default function TicketsPage() {
     const [enrichingBulk, setEnrichingBulk] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    // Debounce search
     useEffect(() => {
         const t = setTimeout(() => setDebouncedSearch(searchValue), 300);
         return () => clearTimeout(t);
     }, [searchValue]);
 
-    // Reset page on filter change
-    useEffect(() => { setPage(1); }, [activeTab, debouncedSearch]);
+    useEffect(() => { setPage(1); }, [sentimentFilter, typeFilter, debouncedSearch]);
 
     const loadTickets = useCallback(() => {
         const params: Record<string, unknown> = { page, per_page: 20 };
-        if (activeTab) params.status = activeTab;
+        if (sentimentFilter) params.sentiment = sentimentFilter;
+        if (typeFilter) params.type = typeFilter;
         if (debouncedSearch) params.search = debouncedSearch;
 
         fetchTickets(params)
@@ -70,7 +87,7 @@ export default function TicketsPage() {
                 if (res?.pagination) setPagination(res.pagination);
             })
             .catch(console.error);
-    }, [page, activeTab, debouncedSearch]);
+    }, [page, sentimentFilter, typeFilter, debouncedSearch]);
 
     useEffect(() => {
         loadTickets();
@@ -78,7 +95,6 @@ export default function TicketsPage() {
         return () => clearInterval(interval);
     }, [loadTickets]);
 
-    // Close dropdown on click outside
     useEffect(() => {
         const handler = (e: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -89,7 +105,6 @@ export default function TicketsPage() {
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
-    // SSE live updates
     useSSE((event) => {
         const { ticket_id } = event;
         loadTickets();
@@ -105,31 +120,21 @@ export default function TicketsPage() {
     const toggleSelect = (id: string) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
-            if (next.has(id)) {
-                next.delete(id);
-            } else {
-                next.add(id);
-            }
+            if (next.has(id)) next.delete(id); else next.add(id);
             return next;
         });
     };
 
     const toggleSelectAll = () => {
-        if (selectedIds.size === tickets.length) {
-            setSelectedIds(new Set());
-        } else {
-            setSelectedIds(new Set(tickets.map(t => t.id)));
-        }
+        if (selectedIds.size === tickets.length) setSelectedIds(new Set());
+        else setSelectedIds(new Set(tickets.map(t => t.id)));
     };
 
     const handleBulkEnrich = async () => {
         setEnrichingBulk(true);
         try {
-            if (selectedIds.size === tickets.length) {
-                await enrichAllTickets();
-            } else {
-                await Promise.all(Array.from(selectedIds).map(id => enrichTicket(id)));
-            }
+            if (selectedIds.size === tickets.length) await enrichAllTickets();
+            else await Promise.all(Array.from(selectedIds).map(id => enrichTicket(id)));
             setSelectedIds(new Set());
             setTimeout(loadTickets, 1500);
         } catch { /* ignore */ }
@@ -156,7 +161,6 @@ export default function TicketsPage() {
         <div className="flex flex-col min-h-full">
             <Header title="Тикеты" />
             <div className="p-8 space-y-6">
-                {/* Live indicator */}
                 <div className="flex items-center gap-2 text-[12px] font-semibold text-primary">
                     <span className="relative flex w-2 h-2">
                         <span className="animate-pulse-ring absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
@@ -166,16 +170,16 @@ export default function TicketsPage() {
                 </div>
 
                 {/* Filters Toolbar */}
-                <div className="glass-card rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-card">
-                    <div className="flex items-center gap-3">
+                <div className="glass-card rounded-xl p-4 flex flex-col gap-3 shadow-card">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex gap-1 bg-background p-1 rounded-lg border border-border">
-                            {TABS.map(tab => (
+                            {SENTIMENT_TABS.map(tab => (
                                 <button
-                                    key={tab.status}
-                                    onClick={() => setActiveTab(tab.status)}
+                                    key={tab.value}
+                                    onClick={() => setSentimentFilter(tab.value)}
                                     className={cn(
-                                        "px-4 py-1.5 rounded-md text-[13px] font-bold transition-all",
-                                        activeTab === tab.status
+                                        "px-3 py-1.5 rounded-md text-[12px] font-bold transition-all",
+                                        sentimentFilter === tab.value
                                             ? "bg-white text-primary shadow-sm"
                                             : "text-muted-foreground hover:text-foreground"
                                     )}
@@ -184,16 +188,32 @@ export default function TicketsPage() {
                                 </button>
                             ))}
                         </div>
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-background border border-border focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/5 min-w-[260px] transition-all">
+                            <Search className="w-4 h-4 text-muted-foreground" />
+                            <input
+                                type="text"
+                                placeholder="Поиск по тикетам..."
+                                value={searchValue}
+                                onChange={e => setSearchValue(e.target.value)}
+                                className="bg-transparent border-none outline-none text-[13px] w-full"
+                            />
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-background border border-border focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/5 min-w-[280px] transition-all">
-                        <Search className="w-4 h-4 text-muted-foreground" />
-                        <input
-                            type="text"
-                            placeholder="Поиск по тикетам..."
-                            value={searchValue}
-                            onChange={e => setSearchValue(e.target.value)}
-                            className="bg-transparent border-none outline-none text-[13px] w-full"
-                        />
+                    <div className="flex gap-1 bg-background p-1 rounded-lg border border-border w-fit">
+                        {TYPE_TABS.map(tab => (
+                            <button
+                                key={tab.value}
+                                onClick={() => setTypeFilter(tab.value)}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-md text-[12px] font-bold transition-all",
+                                    typeFilter === tab.value
+                                        ? "bg-white text-primary shadow-sm"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
@@ -270,7 +290,7 @@ export default function TicketsPage() {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-[12px] text-muted-foreground">
-                                                {t.source_channel || '—'}
+                                                {formatChannel(t.source_channel)}
                                             </td>
                                             <td className="px-6 py-4 text-[12px] text-muted-foreground font-medium">
                                                 {t.created_at ? new Date(t.created_at).toLocaleDateString('ru-RU') : '—'}
@@ -290,7 +310,7 @@ export default function TicketsPage() {
                                                         </button>
                                                         <button onClick={() => handleSingleEnrich(t.id)}
                                                             className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] font-medium text-foreground hover:bg-primary/5">
-                                                            <Sparkles className="w-4 h-4 text-muted-foreground" /> AI обогащение
+                                                            <Sparkles className="w-4 h-4 text-muted-foreground" /> AI анализ
                                                         </button>
                                                     </div>
                                                 )}
@@ -302,7 +322,6 @@ export default function TicketsPage() {
                         </table>
                     </div>
 
-                    {/* Footer with pagination */}
                     <div className="px-6 py-4 border-t border-border flex items-center justify-between bg-[hsl(var(--background))]">
                         <span className="text-[12px] text-muted-foreground">
                             Показано {tickets.length} из {totalItems} | Страница {page} из {totalPages}
@@ -340,7 +359,6 @@ export default function TicketsPage() {
                     </div>
                 </div>
 
-                {/* Bulk action bar */}
                 {selectedIds.size > 0 && (
                     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-foreground text-white rounded-2xl shadow-layered-lg px-6 py-3.5 flex items-center gap-4 z-40 animate-fade-in-up">
                         <CheckSquare className="w-5 h-5" />
@@ -351,7 +369,7 @@ export default function TicketsPage() {
                             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-[13px] font-bold hover:bg-primary/90 disabled:opacity-50 transition-all"
                         >
                             {enrichingBulk ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                            {enrichingBulk ? 'Обогащение...' : `Обогатить (${selectedIds.size})`}
+                            {enrichingBulk ? 'Анализ...' : `AI анализ (${selectedIds.size})`}
                         </button>
                         <button onClick={() => setSelectedIds(new Set())}
                             className="text-[12px] text-white/60 hover:text-white font-medium transition-colors">
@@ -361,7 +379,6 @@ export default function TicketsPage() {
                 )}
             </div>
 
-            {/* Ticket Detail slide-over */}
             {openDetail && (
                 <TicketDetail
                     ticketId={openDetail}

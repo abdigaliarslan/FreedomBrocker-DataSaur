@@ -1,9 +1,26 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Search, Users, Globe, X, Briefcase, Mail, Building2, RotateCcw, ArrowUpDown } from 'lucide-react';
+import { Search, Users, Globe, X, Briefcase, Mail, Building2, RotateCcw, ArrowUpDown, Ticket, ExternalLink } from 'lucide-react';
 import Header from '@/components/layout/Header';
+import TicketDetail from '@/components/TicketDetail';
 import { cn } from '@/lib/utils';
-import { fetchManagers } from '@/api/managers';
-import type { Manager } from '@/types/models';
+import { fetchManagers, fetchManagerTickets } from '@/api/managers';
+import type { Manager, Ticket as TicketType } from '@/types/models';
+
+const STATUS_STYLE: Record<string, string> = {
+    new: 'bg-slate-100 text-slate-600',
+    enriching: 'bg-blue-100 text-blue-700',
+    enriched: 'bg-cyan-100 text-cyan-700',
+    routed: 'bg-purple-100 text-purple-700',
+    open: 'bg-amber-100 text-amber-700',
+    progress: 'bg-blue-100 text-blue-700',
+    resolved: 'bg-emerald-100 text-emerald-700',
+    closed: 'bg-gray-100 text-gray-500',
+};
+const STATUS_LABEL: Record<string, string> = {
+    new: 'Новый', enriching: 'Анализируется', enriched: 'Обработан',
+    routed: 'Маршрутизирован', open: 'Открыт', progress: 'В работе',
+    resolved: 'Решён', closed: 'Закрыт',
+};
 
 export default function ManagersPage() {
     const [managers, setManagers] = useState<Manager[]>([]);
@@ -14,10 +31,22 @@ export default function ManagersPage() {
     const [loadFilter, setLoadFilter] = useState('');
     const [sortBy, setSortBy] = useState('name');
     const [selectedManager, setSelectedManager] = useState<Manager | null>(null);
+    const [managerTickets, setManagerTickets] = useState<TicketType[]>([]);
+    const [ticketsLoading, setTicketsLoading] = useState(false);
+    const [openTicketId, setOpenTicketId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchManagers().then(setManagers).catch(console.error);
     }, []);
+
+    useEffect(() => {
+        if (!selectedManager) { setManagerTickets([]); return; }
+        setTicketsLoading(true);
+        fetchManagerTickets(selectedManager.id)
+            .then(setManagerTickets)
+            .catch(console.error)
+            .finally(() => setTicketsLoading(false));
+    }, [selectedManager]);
 
     const uniqueCities = useMemo(() => [...new Set(managers.map(m => m.office_city).filter(Boolean))].sort(), [managers]);
     const uniqueLangs = useMemo(() => [...new Set(managers.flatMap(m => m.languages || []))].sort(), [managers]);
@@ -25,11 +54,7 @@ export default function ManagersPage() {
     const hasActiveFilters = cityFilter || langFilter || roleFilter || loadFilter;
 
     const resetFilters = () => {
-        setCityFilter('');
-        setLangFilter('');
-        setRoleFilter('');
-        setLoadFilter('');
-        setSearchValue('');
+        setCityFilter(''); setLangFilter(''); setRoleFilter(''); setLoadFilter(''); setSearchValue('');
     };
 
     const filtered = managers.filter(m => {
@@ -100,49 +125,29 @@ export default function ManagersPage() {
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <select
-                            value={cityFilter}
-                            onChange={e => setCityFilter(e.target.value)}
-                            className={cn(
-                                "rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
-                                cityFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground"
-                            )}
-                        >
+                        <select value={cityFilter} onChange={e => setCityFilter(e.target.value)}
+                            className={cn("rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
+                                cityFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground")}>
                             <option value="">Все города</option>
                             {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
-                        <select
-                            value={langFilter}
-                            onChange={e => setLangFilter(e.target.value)}
-                            className={cn(
-                                "rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
-                                langFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground"
-                            )}
-                        >
+                        <select value={langFilter} onChange={e => setLangFilter(e.target.value)}
+                            className={cn("rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
+                                langFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground")}>
                             <option value="">Все языки</option>
                             {uniqueLangs.map(l => <option key={l} value={l}>{l}</option>)}
                         </select>
-                        <select
-                            value={roleFilter}
-                            onChange={e => setRoleFilter(e.target.value)}
-                            className={cn(
-                                "rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
-                                roleFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground"
-                            )}
-                        >
+                        <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
+                            className={cn("rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
+                                roleFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground")}>
                             <option value="">Все роли</option>
                             <option value="regular">Менеджер</option>
                             <option value="vip">VIP менеджер</option>
                             <option value="chief">Главный специалист</option>
                         </select>
-                        <select
-                            value={loadFilter}
-                            onChange={e => setLoadFilter(e.target.value)}
-                            className={cn(
-                                "rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
-                                loadFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground"
-                            )}
-                        >
+                        <select value={loadFilter} onChange={e => setLoadFilter(e.target.value)}
+                            className={cn("rounded-lg border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all",
+                                loadFilter ? "border-primary text-primary bg-primary/5" : "border-border text-foreground")}>
                             <option value="">Любая нагрузка</option>
                             <option value="low">Свободен (&lt; 50%)</option>
                             <option value="mid">Средняя (50-80%)</option>
@@ -150,11 +155,8 @@ export default function ManagersPage() {
                         </select>
                         <div className="flex items-center gap-1.5 ml-auto">
                             <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground" />
-                            <select
-                                value={sortBy}
-                                onChange={e => setSortBy(e.target.value)}
-                                className="rounded-lg border border-border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all"
-                            >
+                            <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+                                className="rounded-lg border border-border px-3 py-2 text-[13px] font-medium bg-white outline-none cursor-pointer transition-all">
                                 <option value="name">По имени</option>
                                 <option value="load_desc">Нагрузка ↓</option>
                                 <option value="load_asc">Нагрузка ↑</option>
@@ -162,10 +164,8 @@ export default function ManagersPage() {
                             </select>
                         </div>
                         {hasActiveFilters && (
-                            <button
-                                onClick={resetFilters}
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-bold text-muted-foreground hover:text-destructive transition-colors"
-                            >
+                            <button onClick={resetFilters}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-bold text-muted-foreground hover:text-destructive transition-colors">
                                 <RotateCcw className="w-3.5 h-3.5" /> Сбросить
                             </button>
                         )}
@@ -222,18 +222,14 @@ export default function ManagersPage() {
                                         <span className="font-bold text-foreground">{m.current_load}/{m.max_load} ({m.utilization_pct}%)</span>
                                     </div>
                                     <div className="h-2 bg-background rounded-full overflow-hidden border border-border/50">
-                                        <div
-                                            className={cn("h-full rounded-full transition-all duration-700", getUtilColor(m.utilization_pct))}
-                                            style={{ width: `${Math.min(m.utilization_pct, 100)}%` }}
-                                        />
+                                        <div className={cn("h-full rounded-full transition-all duration-700", getUtilColor(m.utilization_pct))}
+                                            style={{ width: `${Math.min(m.utilization_pct, 100)}%` }} />
                                     </div>
                                 </div>
 
                                 <div className="flex items-center justify-end">
-                                    <button
-                                        onClick={() => setSelectedManager(m)}
-                                        className="text-[12px] font-bold text-primary px-4 py-1.5 rounded-lg border border-primary/20 hover:bg-primary hover:text-white transition-all"
-                                    >
+                                    <button onClick={() => setSelectedManager(m)}
+                                        className="text-[12px] font-bold text-primary px-4 py-1.5 rounded-lg border border-primary/20 hover:bg-primary hover:text-white transition-all">
                                         Профиль
                                     </button>
                                 </div>
@@ -243,17 +239,22 @@ export default function ManagersPage() {
                 )}
             </div>
 
+            {/* Manager profile modal */}
             {selectedManager && (
                 <>
                     <div className="slideover-overlay" onClick={() => setSelectedManager(null)} />
-                    <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-2xl shadow-layered-lg max-w-md w-full p-8 animate-fade-in-up relative">
+                    <div className="fixed right-0 top-0 bottom-0 w-full max-w-[480px] bg-white z-50 shadow-layered-lg overflow-y-auto scrollbar-thin animate-slide-in-right flex flex-col">
+                        <div className="sticky top-0 bg-white/90 backdrop-blur-md border-b border-border px-6 py-4 flex items-center justify-between z-10">
+                            <h2 className="text-[15px] font-bold text-foreground">Профиль менеджера</h2>
                             <button onClick={() => setSelectedManager(null)}
-                                className="absolute right-4 top-4 p-2 rounded-lg hover:bg-background transition-colors">
+                                className="p-2 rounded-lg hover:bg-background transition-colors">
                                 <X className="w-5 h-5 text-muted-foreground" />
                             </button>
+                        </div>
 
-                            <div className="flex items-center gap-4 mb-6">
+                        <div className="flex-1 p-6 space-y-6">
+                            {/* Avatar + name */}
+                            <div className="flex items-center gap-4">
                                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-xl font-bold text-primary">
                                     {initials(selectedManager.full_name)}
                                 </div>
@@ -265,6 +266,7 @@ export default function ManagersPage() {
                                 </div>
                             </div>
 
+                            {/* Info */}
                             <div className="space-y-3">
                                 {selectedManager.email && (
                                     <div className="flex items-center gap-3 text-[13px]">
@@ -292,26 +294,77 @@ export default function ManagersPage() {
                                 )}
                             </div>
 
-                            <div className="mt-6 p-4 bg-background rounded-xl border border-border">
+                            {/* Utilization */}
+                            <div className="p-4 bg-background rounded-xl border border-border">
                                 <div className="flex items-center justify-between text-[12px] mb-2">
                                     <span className="font-bold text-muted-foreground">Утилизация</span>
                                     <span className="font-bold text-foreground">{selectedManager.utilization_pct}%</span>
                                 </div>
                                 <div className="h-3 bg-white rounded-full overflow-hidden border border-border/50">
-                                    <div
-                                        className={cn("h-full rounded-full transition-all duration-700", getUtilColor(selectedManager.utilization_pct))}
-                                        style={{ width: `${Math.min(selectedManager.utilization_pct, 100)}%` }}
-                                    />
+                                    <div className={cn("h-full rounded-full transition-all duration-700", getUtilColor(selectedManager.utilization_pct))}
+                                        style={{ width: `${Math.min(selectedManager.utilization_pct, 100)}%` }} />
                                 </div>
                             </div>
 
-                            <div className="mt-4 text-[11px] text-muted-foreground">
+                            {/* Tickets */}
+                            <div>
+                                <div className="flex items-center gap-2 text-[13px] font-bold text-foreground mb-3">
+                                    <Ticket className="w-4 h-4 text-primary" />
+                                    Тикеты менеджера
+                                    {managerTickets.length > 0 && (
+                                        <span className="ml-auto text-[11px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                                            {managerTickets.length}
+                                        </span>
+                                    )}
+                                </div>
+                                {ticketsLoading ? (
+                                    <p className="text-[12px] text-muted-foreground py-4 text-center">Загрузка...</p>
+                                ) : managerTickets.length === 0 ? (
+                                    <p className="text-[12px] text-muted-foreground py-4 text-center">Нет назначенных тикетов</p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {managerTickets.map(t => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => setOpenTicketId(t.id)}
+                                                className="w-full flex items-start gap-3 p-3 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-all text-left group"
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[12px] font-bold text-foreground line-clamp-1 group-hover:text-primary">
+                                                        {t.subject || '—'}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold", STATUS_STYLE[t.status] ?? 'bg-muted text-muted-foreground')}>
+                                                            {STATUS_LABEL[t.status] ?? t.status}
+                                                        </span>
+                                                        <span className="text-[10px] text-muted-foreground">
+                                                            {new Date(t.created_at).toLocaleDateString('ru-RU')}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <ExternalLink className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary shrink-0 mt-0.5" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Meta */}
+                            <div className="text-[11px] text-muted-foreground space-y-1 pt-4 border-t border-border">
                                 <p>ID: <span className="font-mono">{selectedManager.id}</span></p>
                                 <p>Создан: {new Date(selectedManager.created_at).toLocaleDateString('ru-RU')}</p>
                             </div>
                         </div>
                     </div>
                 </>
+            )}
+
+            {/* Ticket detail from manager profile */}
+            {openTicketId && (
+                <TicketDetail
+                    ticketId={openTicketId}
+                    onClose={() => setOpenTicketId(null)}
+                />
             )}
         </div>
     );

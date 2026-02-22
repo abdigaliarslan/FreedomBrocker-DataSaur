@@ -99,14 +99,28 @@ func (r *TicketRepo) List(ctx context.Context, f domain.TicketListFilter) ([]dom
 		args = append(args, "%"+f.Search+"%")
 		argIdx++
 	}
+	if f.Sentiment != "" {
+		conditions = append(conditions, fmt.Sprintf("ai.sentiment = $%d", argIdx))
+		args = append(args, f.Sentiment)
+		argIdx++
+	}
+	if f.Type != "" {
+		conditions = append(conditions, fmt.Sprintf("ai.type = $%d", argIdx))
+		args = append(args, f.Type)
+		argIdx++
+	}
 
 	where := ""
 	if len(conditions) > 0 {
 		where = "WHERE " + strings.Join(conditions, " AND ")
 	}
 
+	// Always join ticket_ai so sentiment/type filters work
+	joins := `LEFT JOIN ticket_assignment a ON a.ticket_id = t.id AND a.is_current = true
+		 LEFT JOIN ticket_ai ai ON ai.ticket_id = t.id`
+
 	// Count
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM tickets t %s", where)
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM tickets t %s %s", joins, where)
 	var total int
 	if err := r.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, err
@@ -124,10 +138,10 @@ func (r *TicketRepo) List(ctx context.Context, f domain.TicketListFilter) ([]dom
 		`SELECT t.id, t.external_id, t.subject, t.body, t.client_name, t.client_segment, t.source_channel, t.status, t.raw_address, t.attachments, t.created_at, t.updated_at,
 		        a.manager_id, a.office_id
 		 FROM tickets t
-		 LEFT JOIN ticket_assignment a ON a.ticket_id = t.id AND a.is_current = true
 		 %s
-		 ORDER BY t.created_at DESC
-		 LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
+		 %s
+		 ORDER BY CASE WHEN t.status IN ('enriched','routed') THEN 0 WHEN t.status = 'enriching' THEN 1 ELSE 2 END, t.created_at DESC
+		 LIMIT $%d OFFSET $%d`, joins, where, argIdx, argIdx+1)
 	args = append(args, f.PerPage, offset)
 
 	rows, err := r.pool.Query(ctx, query, args...)
@@ -147,6 +161,32 @@ func (r *TicketRepo) List(ctx context.Context, f domain.TicketListFilter) ([]dom
 	}
 
 	return tickets, total, nil
+}
+
+func (r *TicketRepo) ListByManager(ctx context.Context, managerID uuid.UUID) ([]domain.Ticket, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT t.id, t.external_id, t.subject, t.body, t.client_name, t.client_segment, t.source_channel, t.status, t.raw_address, t.attachments, t.created_at, t.updated_at,
+		        ta.manager_id, ta.office_id
+		 FROM tickets t
+		 JOIN ticket_assignment ta ON ta.ticket_id = t.id AND ta.is_current = true
+		 WHERE ta.manager_id = $1
+		 ORDER BY t.created_at DESC
+		 LIMIT 20`, managerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	tickets := []domain.Ticket{}
+	for rows.Next() {
+		var t domain.Ticket
+		if err := rows.Scan(&t.ID, &t.ExternalID, &t.Subject, &t.Body, &t.ClientName, &t.ClientSegment, &t.SourceChannel, &t.Status, &t.RawAddress, &t.Attachments, &t.CreatedAt, &t.UpdatedAt,
+			&t.ManagerID, &t.OfficeID); err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, t)
+	}
+	return tickets, nil
 }
 
 func (r *TicketRepo) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {

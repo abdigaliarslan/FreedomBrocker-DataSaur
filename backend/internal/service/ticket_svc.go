@@ -79,3 +79,7 @@ func (s *TicketService) GetWithDetails(ctx context.Context, id uuid.UUID) (*doma
 func (s *TicketService) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
 	return s.ticketRepo.UpdateStatus(ctx, id, status)
 }
+
+func (s *TicketService) ListByManager(ctx context.Context, managerID uuid.UUID) ([]domain.Ticket, error) {
+	return s.ticketRepo.ListByManager(ctx, managerID)
+}
