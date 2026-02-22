@@ -48,6 +48,16 @@ func (s *DashboardService) Stats(ctx context.Context) (*DashboardStats, error) {
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM ticket_ai`).Scan(&stats.AIProcessedCount)
 	s.pool.QueryRow(ctx, `SELECT COALESCE(AVG(processing_ms), 0) FROM ticket_ai WHERE processing_ms IS NOT NULL`).Scan(&stats.AvgProcessingMs)
 
+	// Tickets change: today vs yesterday
+	var today, yesterday int
+	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM tickets WHERE created_at >= CURRENT_DATE`).Scan(&today)
+	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM tickets WHERE created_at >= CURRENT_DATE - INTERVAL '1 day' AND created_at < CURRENT_DATE`).Scan(&yesterday)
+	if yesterday > 0 {
+		stats.TicketsChangePct = float64(today-yesterday) / float64(yesterday) * 100
+	} else if today > 0 {
+		stats.TicketsChangePct = 100
+	}
+
 	return &stats, nil
 }
 

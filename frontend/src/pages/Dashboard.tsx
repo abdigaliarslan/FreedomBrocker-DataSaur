@@ -69,7 +69,10 @@ export default function DashboardPage() {
         {
             icon: Ticket, label: 'Всего тикетов',
             value: statsData?.total_tickets?.toLocaleString() || '0',
-            change: `+${statsData?.tickets_change_pct || 0}%`, up: true,
+            change: statsData?.tickets_change_pct
+                ? `${statsData.tickets_change_pct > 0 ? '+' : ''}${Math.round(statsData.tickets_change_pct)}%`
+                : '',
+            up: (statsData?.tickets_change_pct ?? 0) >= 0,
             color: 'bg-[linear-gradient(135deg,#00C853,#00BFA5)]',
             subStats: statsData ? [
                 { label: 'В ожидании', value: statsData.pending_tickets },
