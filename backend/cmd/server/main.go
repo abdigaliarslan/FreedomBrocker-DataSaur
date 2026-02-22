@@ -63,16 +63,17 @@ func main() {
 	// Services
 	importSvc := service.NewImportService(ticketRepo, managerRepo, buRepo)
 	routingSvc := service.NewRoutingService(pool, geoFilter, skillFilter, loadBalancer, roundRobin, managerRepo, auditRepo, ticketRepo)
-	ticketSvc := service.NewTicketService(ticketRepo, assignmentRepo, auditRepo)
+	ticketSvc := service.NewTicketService(ticketRepo, assignmentRepo, auditRepo, managerRepo, buRepo)
 	managerSvc := service.NewManagerService(managerRepo, buRepo)
 	dashboardSvc := service.NewDashboardService(pool)
 	starSvc := service.NewStarService(pool, cfg.OpenAIKey, cfg.OpenAIModel)
+	aiSvc := service.NewAIService(cfg.OpenAIKey, cfg.OpenAIModel, cfg.ImagesDir, ticketRepo, routingSvc)
 
 	// Handlers
-	importH := handler.NewImportHandler(importSvc, cfg.N8NWebhookURL)
-	callbackH := handler.NewCallbackHandler(ticketRepo, routingSvc)
-	ticketH := handler.NewTicketHandler(ticketSvc, cfg.N8NWebhookURL)
-	managerH := handler.NewManagerHandler(managerSvc)
+	importH := handler.NewImportHandler(importSvc, aiSvc)
+	callbackH := handler.NewCallbackHandler(ticketRepo, assignmentRepo, routingSvc)
+	ticketH := handler.NewTicketHandler(ticketSvc, aiSvc)
+	managerH := handler.NewManagerHandler(managerSvc, ticketSvc)
 	dashboardH := handler.NewDashboardHandler(dashboardSvc)
 	starH := handler.NewStarHandler(starSvc)
 
@@ -82,7 +83,7 @@ func main() {
 	r.Use(chimw.RealIP)
 	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
-	r.Use(chimw.Timeout(30 * time.Second))
+	r.Use(chimw.Timeout(120 * time.Second))
 	r.Use(mw.CORSHandler(cfg.CORSOrigins))
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +97,7 @@ func main() {
 		r.Post("/import/managers", importH.ImportManagers)
 		r.Post("/import/business-units", importH.ImportBusinessUnits)
 
-		// Internal callbacks (from n8n)
+		// Internal callbacks (kept for backward compatibility)
 		r.Route("/internal/callback", func(r chi.Router) {
 			r.Post("/enrich", callbackH.HandleEnrichment)
 			r.Post("/star-query", callbackH.HandleStarQuery)
@@ -112,6 +113,7 @@ func main() {
 		// Managers
 		r.Get("/managers", managerH.List)
 		r.Get("/managers/{id}", managerH.Get)
+		r.Get("/managers/{id}/tickets", managerH.GetTickets)
 
 		// Offices
 		r.Get("/offices", managerH.ListOffices)

@@ -1,0 +1,15 @@
+UPDATE business_units SET lat = 43.6500, lon = 51.1500 WHERE name = 'Актау' AND lat IS NULL;
+UPDATE business_units SET lat = 50.2839, lon = 57.1670 WHERE name = 'Актобе' AND lat IS NULL;
+UPDATE business_units SET lat = 43.2220, lon = 76.8512 WHERE name = 'Алматы' AND lat IS NULL;
+UPDATE business_units SET lat = 51.1694, lon = 71.4491 WHERE name = 'Астана' AND lat IS NULL;
+UPDATE business_units SET lat = 47.1167, lon = 51.8833 WHERE name = 'Атырау' AND lat IS NULL;
+UPDATE business_units SET lat = 49.8047, lon = 73.1094 WHERE name = 'Караганда' AND lat IS NULL;
+UPDATE business_units SET lat = 53.2833, lon = 69.3833 WHERE name = 'Кокшетау' AND lat IS NULL;
+UPDATE business_units SET lat = 53.2198, lon = 63.6354 WHERE name = 'Костанай' AND lat IS NULL;
+UPDATE business_units SET lat = 44.8479, lon = 65.5092 WHERE name = 'Кызылорда' AND lat IS NULL;
+UPDATE business_units SET lat = 52.2873, lon = 76.9674 WHERE name = 'Павлодар' AND lat IS NULL;
+UPDATE business_units SET lat = 54.8667, lon = 69.1500 WHERE name = 'Петропавловск' AND lat IS NULL;
+UPDATE business_units SET lat = 42.9000, lon = 71.3667 WHERE name = 'Тараз' AND lat IS NULL;
+UPDATE business_units SET lat = 51.2333, lon = 51.3667 WHERE name = 'Уральск' AND lat IS NULL;
+UPDATE business_units SET lat = 49.9481, lon = 82.6279 WHERE name = 'Усть-Каменогорск' AND lat IS NULL;
+UPDATE business_units SET lat = 42.3417, lon = 69.5901 WHERE name = 'Шымкент' AND lat IS NULL;

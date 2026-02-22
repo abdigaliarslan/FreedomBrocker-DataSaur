@@ -16,7 +16,11 @@ export default function DonutChart({ data, size = 160, strokeWidth = 24 }: Donut
     const total = data.reduce((s, d) => s + d.value, 0);
     const center = size / 2;
 
-    let cumulative = 0;
+    const offsets = data.reduce<number[]>((acc, _seg, i) => {
+        const prev = i === 0 ? 0 : acc[i - 1] + (total > 0 ? data[i - 1].value / total : 0);
+        acc.push(prev);
+        return acc;
+    }, []);
 
     return (
         <div className="flex items-center gap-6">
@@ -27,8 +31,7 @@ export default function DonutChart({ data, size = 160, strokeWidth = 24 }: Donut
                 {data.map((seg, i) => {
                     const pct = total > 0 ? seg.value / total : 0;
                     const dash = circumference * pct;
-                    const offset = -circumference * cumulative;
-                    cumulative += pct;
+                    const offset = -circumference * offsets[i];
                     return (
                         <circle
                             key={i} cx={center} cy={center} r={radius}

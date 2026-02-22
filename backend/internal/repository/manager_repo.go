@@ -119,6 +119,27 @@ func (r *ManagerRepo) ListByBusinessUnit(ctx context.Context, buID uuid.UUID) ([
 	return managers, nil
 }
 
+func (r *ManagerRepo) ListAllActive(ctx context.Context) ([]domain.Manager, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, full_name, email, business_unit_id, is_vip_skill, is_chief_spec, languages, max_load, current_load, is_active, created_at
+		 FROM managers WHERE is_active = true
+		 ORDER BY current_load ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	managers := []domain.Manager{}
+	for rows.Next() {
+		var m domain.Manager
+		if err := rows.Scan(&m.ID, &m.FullName, &m.Email, &m.BusinessUnitID, &m.IsVIPSkill, &m.IsChiefSpec, &m.Languages, &m.MaxLoad, &m.CurrentLoad, &m.IsActive, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		managers = append(managers, m)
+	}
+	return managers, nil
+}
+
 func (r *ManagerRepo) IncrementLoad(ctx context.Context, tx pgx.Tx, managerID uuid.UUID) error {
 	_, err := tx.Exec(ctx,
 		`UPDATE managers SET current_load = current_load + 1 WHERE id = $1`, managerID)

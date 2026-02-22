@@ -1,6 +1,6 @@
 import api from './client';
 
-export async function queryStar(query: string) {
-    const { data } = await api.post('/star/query', { query });
-    return data;
+export async function queryStar(question: string) {
+    const { data } = await api.post('/star/query', { question });
+    return data.data || data;
 }

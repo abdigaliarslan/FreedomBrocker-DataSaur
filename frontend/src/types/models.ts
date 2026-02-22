@@ -9,6 +9,7 @@ export interface Ticket {
     source_channel: string | null;
     status: string;
     raw_address: string | null;
+    attachments: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -29,6 +30,7 @@ export interface TicketAI {
     confidence_type: number | null;
     confidence_sentiment: number | null;
     confidence_priority: number | null;
+    processing_ms: number | null;
     enriched_at: string | null;
     created_at: string;
 }
@@ -63,6 +65,8 @@ export interface TicketWithDetails {
     assignment: TicketAssignment | null;
     assigned_manager: Manager | null;
     audit_trail: AuditLog[];
+    geo_city: string | null;    // resolved city from geo_cache
+    distance_km: number | null; // Haversine distance ticket→office (km)
 }
 
 /* ── Manager (with office info from GET /managers) ─────── */

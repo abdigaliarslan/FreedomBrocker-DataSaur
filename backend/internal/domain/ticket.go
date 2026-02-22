@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,6 +17,7 @@ type Ticket struct {
 	SourceChannel *string    `json:"source_channel" db:"source_channel"`
 	Status        string     `json:"status" db:"status"`
 	RawAddress    *string    `json:"raw_address" db:"raw_address"`
+	Attachments   *string    `json:"attachments" db:"attachments"`
 	ManagerID     *uuid.UUID `json:"manager_id,omitempty" db:"manager_id"`
 	OfficeID      *uuid.UUID `json:"office_id,omitempty" db:"office_id"`
 	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
@@ -30,13 +32,14 @@ type TicketAI struct {
 	Priority110         *int       `json:"priority_1_10" db:"priority_1_10"`
 	Lang                string     `json:"lang" db:"lang"`
 	Summary             *string    `json:"summary" db:"summary"`
-	RecommendedActions  []byte     `json:"recommended_actions" db:"recommended_actions"`
+	RecommendedActions  json.RawMessage `json:"recommended_actions" db:"recommended_actions"`
 	Lat                 *float64   `json:"lat" db:"lat"`
 	Lon                 *float64   `json:"lon" db:"lon"`
 	GeoStatus           string     `json:"geo_status" db:"geo_status"`
 	ConfidenceType      *float64   `json:"confidence_type" db:"confidence_type"`
 	ConfidenceSentiment *float64   `json:"confidence_sentiment" db:"confidence_sentiment"`
 	ConfidencePriority  *float64   `json:"confidence_priority" db:"confidence_priority"`
+	ProcessingMs        *int       `json:"processing_ms" db:"processing_ms"`
 	EnrichedAt          *time.Time `json:"enriched_at" db:"enriched_at"`
 	CreatedAt           time.Time  `json:"created_at" db:"created_at"`
 }
@@ -53,11 +56,13 @@ type TicketListFilter struct {
 }
 
 type TicketWithDetails struct {
-	Ticket     Ticket            `json:"ticket"`
-	AI         *TicketAI         `json:"ai"`
-	Assignment *TicketAssignment `json:"assignment"`
-	Manager    *Manager          `json:"assigned_manager"`
-	AuditTrail []AuditLog        `json:"audit_trail"`
+	Ticket     Ticket             `json:"ticket"`
+	AI         *TicketAI          `json:"ai"`
+	Assignment *TicketAssignment  `json:"assignment"`
+	Manager    *ManagerWithOffice `json:"assigned_manager"`
+	AuditTrail []AuditLog         `json:"audit_trail"`
+	GeoCity    *string            `json:"geo_city"`    // resolved city from geo_cache
+	DistanceKm *float64           `json:"distance_km"` // Haversine distance ticket→office (km)
 }
 
 // EnrichmentResult is the payload from n8n callback.

@@ -78,7 +78,7 @@ func (sf *SkillFilter) Filter(managers []domain.Manager, segment, ticketType, la
 		}
 	}
 
-	decision := "No skill filters applied"
+	decision := fmt.Sprintf("Pool: %d managers (no skill filters applied)", len(candidates))
 	if len(decisions) > 0 {
 		decision = ""
 		for i, d := range decisions {

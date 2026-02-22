@@ -37,8 +37,23 @@ func NewRoutingService(
 
 // RouteTicket runs the full 4-step routing pipeline for a ticket.
 func (s *RoutingService) RouteTicket(ctx context.Context, ticket *domain.Ticket, ai *domain.TicketAI) error {
-	// Step 1: Geo filter
-	geoResult, err := s.geoFilter.Resolve(ctx, ticket.ID, ai.Lat, ai.Lon, ai.GeoStatus)
+	// Skip routing if ticket already has an active assignment (prevents duplicate audit entries)
+	var existingCount int
+	_ = s.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM ticket_assignment WHERE ticket_id = $1 AND is_current = true`,
+		ticket.ID,
+	).Scan(&existingCount)
+	if existingCount > 0 {
+		return nil
+	}
+
+	// Step 1: Geo filter — extract city hint from raw address for fallback matching
+	rawCityPtr := extractCityFromAddress(ticket.RawAddress)
+	rawCity := ""
+	if rawCityPtr != nil {
+		rawCity = *rawCityPtr
+	}
+	geoResult, err := s.geoFilter.Resolve(ctx, ticket.ID, ai.Lat, ai.Lon, ai.GeoStatus, rawCity)
 	if err != nil {
 		return fmt.Errorf("geo filter: %w", err)
 	}
@@ -49,6 +64,13 @@ func (s *RoutingService) RouteTicket(ctx context.Context, ticket *domain.Ticket,
 	managers, err := s.managerRepo.ListByBusinessUnit(ctx, geoResult.BusinessUnitID)
 	if err != nil {
 		return fmt.Errorf("list managers: %w", err)
+	}
+	// Fallback: if no managers in resolved office, use all active managers
+	if len(managers) == 0 {
+		managers, err = s.managerRepo.ListAllActive(ctx)
+		if err != nil {
+			return fmt.Errorf("list all managers fallback: %w", err)
+		}
 	}
 
 	segment := ""

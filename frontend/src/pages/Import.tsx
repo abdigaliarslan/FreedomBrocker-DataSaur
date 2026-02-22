@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
-import { Upload, CheckCircle, AlertCircle, Bot, Loader2 } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, Bot, Loader2, Sparkles } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { cn } from '@/lib/utils';
 import { importData } from '@/api/import';
+import { enrichAllTickets } from '@/api/tickets';
 
 interface ImportResult {
     name: string;
@@ -17,7 +18,10 @@ interface ImportResult {
 export default function ImportPage() {
     const [dragover, setDragover] = useState(false);
     const [results, setResults] = useState<ImportResult[]>([]);
+    const [enrichingAll, setEnrichingAll] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
+
+    const hasTicketImport = results.some(r => r.status === 'success' && r.type === 'Тикеты');
 
     const handleFile = async (file: File) => {
         const start = Date.now();
@@ -59,11 +63,14 @@ export default function ImportPage() {
         }
     };
 
+    const handleFiles = (files: FileList) => {
+        Array.from(files).forEach(f => handleFile(f));
+    };
+
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setDragover(false);
-        const file = e.dataTransfer?.files?.[0];
-        if (file) handleFile(file);
+        if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
     };
 
     return (
@@ -87,7 +94,8 @@ export default function ImportPage() {
                         ref={fileRef}
                         className="hidden"
                         accept=".csv,.xlsx,.xls"
-                        onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])}
+                        multiple
+                        onChange={e => { if (e.target.files?.length) handleFiles(e.target.files); }}
                     />
                     <div className="w-20 h-20 rounded-[2rem] bg-primary/10 flex items-center justify-center text-primary mx-auto mb-8 transition-transform group-hover:-translate-y-2 group-hover:bg-primary group-hover:text-white duration-500">
                         <Upload className="w-10 h-10" />
@@ -116,6 +124,21 @@ export default function ImportPage() {
                         </p>
                     </div>
                 </div>
+
+                {hasTicketImport && (
+                    <button
+                        onClick={async () => {
+                            setEnrichingAll(true);
+                            try { await enrichAllTickets(); } catch { /* ignore */ }
+                            finally { setEnrichingAll(false); }
+                        }}
+                        disabled={enrichingAll}
+                        className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl bg-primary text-white font-bold text-[14px] hover:bg-primary/90 disabled:opacity-50 transition-all shadow-lg shadow-primary/20"
+                    >
+                        {enrichingAll ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                        {enrichingAll ? 'AI обрабатывает тикеты...' : 'Запустить AI-обогащение всех тикетов'}
+                    </button>
+                )}
 
                 <div className="space-y-4">
                     <h3 className="text-base font-bold text-foreground flex items-center gap-3">

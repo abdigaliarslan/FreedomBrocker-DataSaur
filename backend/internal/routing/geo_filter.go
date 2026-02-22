@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -34,7 +35,7 @@ type GeoResult struct {
 	Method         string // "nearest" or "fallback_50_50"
 }
 
-func (g *GeoFilter) Resolve(ctx context.Context, ticketID uuid.UUID, lat, lon *float64, geoStatus string) (*GeoResult, error) {
+func (g *GeoFilter) Resolve(ctx context.Context, ticketID uuid.UUID, lat, lon *float64, geoStatus, rawCity string) (*GeoResult, error) {
 	offices, err := g.buRepo.GetAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get offices: %w", err)
@@ -44,8 +45,26 @@ func (g *GeoFilter) Resolve(ctx context.Context, ticketID uuid.UUID, lat, lon *f
 		return nil, fmt.Errorf("no offices found")
 	}
 
-	// If geo is unknown or foreign — 50/50 fallback
+	// If geo is unknown or foreign — try city name matching before random fallback
 	if geoStatus == "unknown" || geoStatus == "foreign" || lat == nil || lon == nil {
+		if rawCity != "" {
+			rawCityLower := strings.ToLower(strings.TrimSpace(rawCity))
+			for _, office := range offices {
+				officeCityLower := strings.ToLower(office.City)
+				officeNameLower := strings.ToLower(office.Name)
+				if officeCityLower == rawCityLower ||
+					strings.Contains(officeCityLower, rawCityLower) ||
+					strings.Contains(rawCityLower, officeCityLower) ||
+					strings.Contains(officeNameLower, rawCityLower) {
+					return &GeoResult{
+						BusinessUnitID: office.ID,
+						City:           office.City,
+						Decision:       fmt.Sprintf("City name match: '%s' → office %s", rawCity, office.City),
+						Method:         "city_match",
+					}, nil
+				}
+			}
+		}
 		idx := ticketID[0] % byte(len(offices))
 		selected := offices[idx]
 		return &GeoResult{
@@ -59,6 +78,7 @@ func (g *GeoFilter) Resolve(ctx context.Context, ticketID uuid.UUID, lat, lon *f
 	// Find nearest office by Haversine distance
 	var nearest domain.BusinessUnit
 	minDist := math.MaxFloat64
+	found := false
 
 	for _, office := range offices {
 		if office.Lat == nil || office.Lon == nil {
@@ -68,7 +88,19 @@ func (g *GeoFilter) Resolve(ctx context.Context, ticketID uuid.UUID, lat, lon *f
 		if dist < minDist {
 			minDist = dist
 			nearest = office
+			found = true
 		}
+	}
+
+	// If no office has coordinates, fallback to first office
+	if !found {
+		nearest = offices[0]
+		return &GeoResult{
+			BusinessUnitID: nearest.ID,
+			City:           nearest.City,
+			Decision:       fmt.Sprintf("No office coordinates — fallback to %s", nearest.City),
+			Method:         "fallback_no_coords",
+		}, nil
 	}
 
 	return &GeoResult{

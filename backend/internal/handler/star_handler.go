@@ -52,6 +52,7 @@ func (h *StarHandler) Query(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// AI-powered path: generate SQL from natural language via OpenAI
+	// AI-powered path: generate SQL from natural language
 	result, err := h.svc.QueryWithAI(r.Context(), question)
 	if err != nil {
 		RespondError(w, http.StatusInternalServerError, err.Error())

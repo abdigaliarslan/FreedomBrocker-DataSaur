@@ -10,11 +10,12 @@ import (
 )
 
 type ManagerHandler struct {
-	svc *service.ManagerService
+	svc       *service.ManagerService
+	ticketSvc *service.TicketService
 }
 
-func NewManagerHandler(svc *service.ManagerService) *ManagerHandler {
-	return &ManagerHandler{svc: svc}
+func NewManagerHandler(svc *service.ManagerService, ticketSvc *service.TicketService) *ManagerHandler {
+	return &ManagerHandler{svc: svc, ticketSvc: ticketSvc}
 }
 
 func (h *ManagerHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -39,6 +40,21 @@ func (h *ManagerHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	RespondOK(w, manager)
+}
+
+func (h *ManagerHandler) GetTickets(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		RespondError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	tickets, err := h.ticketSvc.ListByManager(r.Context(), id)
+	if err != nil {
+		RespondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	RespondOK(w, tickets)
 }
 
 func (h *ManagerHandler) ListOffices(w http.ResponseWriter, r *http.Request) {

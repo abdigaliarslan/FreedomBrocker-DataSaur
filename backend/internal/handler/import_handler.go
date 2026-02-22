@@ -1,10 +1,8 @@
 package handler
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -13,17 +11,12 @@ import (
 )
 
 type ImportHandler struct {
-	svc           *service.ImportService
-	n8nWebhookURL string
-	httpClient    *http.Client
+	svc *service.ImportService
+	ai  *service.AIService
 }
 
-func NewImportHandler(svc *service.ImportService, n8nWebhookURL string) *ImportHandler {
-	return &ImportHandler{
-		svc:           svc,
-		n8nWebhookURL: n8nWebhookURL,
-		httpClient:    &http.Client{Timeout: 30 * time.Second},
-	}
+func NewImportHandler(svc *service.ImportService, ai *service.AIService) *ImportHandler {
+	return &ImportHandler{svc: svc, ai: ai}
 }
 
 // Import auto-detects file type from CSV headers and imports accordingly.
@@ -46,12 +39,12 @@ func (h *ImportHandler) Import(w http.ResponseWriter, r *http.Request) {
 		GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: id.String(), Status: "new"})
 	}
 
-	RespondOK(w, result)
-
-	// Trigger n8n for imported tickets
-	if result.Type == "tickets" && len(result.ImportedIDs) > 0 {
-		go h.triggerN8NBatch(result.ImportedIDs)
+	// Auto-trigger AI enrichment for imported tickets in background
+	if result.Type == "tickets" && len(result.ImportedIDs) > 0 && h.ai != nil {
+		go h.enrichImportedTickets(result.ImportedIDs)
 	}
+
+	RespondOK(w, result)
 }
 
 func (h *ImportHandler) ImportTickets(w http.ResponseWriter, r *http.Request) {
@@ -68,35 +61,32 @@ func (h *ImportHandler) ImportTickets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	RespondOK(w, result)
-
-	if len(result.ImportedIDs) > 0 {
-		go h.triggerN8NBatch(result.ImportedIDs)
+	// Auto-trigger AI enrichment
+	if len(result.ImportedIDs) > 0 && h.ai != nil {
+		go h.enrichImportedTickets(result.ImportedIDs)
 	}
+
+	RespondOK(w, result)
 }
 
-func (h *ImportHandler) triggerN8NBatch(ids []uuid.UUID) {
+// enrichImportedTickets runs AI enrichment sequentially for each imported ticket.
+func (h *ImportHandler) enrichImportedTickets(ids []uuid.UUID) {
+	ctx := context.Background()
+	log.Info().Int("count", len(ids)).Msg("starting auto AI enrichment for imported tickets")
+
 	for _, id := range ids {
-		payload, _ := json.Marshal(map[string]string{
-			"ticket_id": id.String(),
-		})
+		GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: id.String(), Status: "enriching"})
 
-		resp, err := h.httpClient.Post(h.n8nWebhookURL, "application/json", bytes.NewReader(payload))
-		if err != nil {
-			log.Error().Err(err).Str("ticket_id", id.String()).Msg("failed to trigger n8n enrichment")
-			continue
-		}
-		resp.Body.Close()
-
-		if resp.StatusCode >= 400 {
-			log.Error().Int("status", resp.StatusCode).Str("ticket_id", id.String()).Msg("n8n returned error status")
+		if err := h.ai.EnrichTicket(ctx, id); err != nil {
+			log.Error().Err(err).Str("ticket_id", id.String()).Msg("auto enrichment failed")
+			GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: id.String(), Status: "error"})
 			continue
 		}
 
-		log.Info().Str("ticket_id", id.String()).Msg("n8n enrichment triggered after import")
-		// Give n8n stable time between calls
-		time.Sleep(100 * time.Millisecond)
+		GlobalHub.Broadcast(WSEvent{Type: "ticket_update", TicketID: id.String(), Status: "enriched"})
 	}
+
+	log.Info().Int("count", len(ids)).Msg("auto AI enrichment completed")
 }
 
 func (h *ImportHandler) ImportManagers(w http.ResponseWriter, r *http.Request) {

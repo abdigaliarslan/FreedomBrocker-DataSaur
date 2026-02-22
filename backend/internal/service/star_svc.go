@@ -27,6 +27,7 @@ func NewStarService(pool *pgxpool.Pool, apiKey, model string) *StarService {
 		apiKey:     apiKey,
 		model:      model,
 		httpClient: &http.Client{Timeout: 60 * time.Second},
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -102,6 +103,13 @@ const starSystemPrompt = `Ты — AI-аналитик Freedom Broker. Гене�
    - address TEXT — адрес
 
 Ответь СТРОГО JSON без markdown-обёрток, без тройных кавычек, без слова json:
+- tickets(id UUID, external_id TEXT, subject TEXT, body TEXT, client_name TEXT, client_segment TEXT, source_channel TEXT, status TEXT, raw_address TEXT, created_at TIMESTAMPTZ)
+- ticket_ai(ticket_id UUID, type TEXT, sentiment TEXT, priority_1_10 INT, lang TEXT, summary TEXT, lat FLOAT, lon FLOAT, geo_status TEXT, processing_ms INT, enriched_at TIMESTAMPTZ)
+- ticket_assignment(ticket_id UUID, manager_id UUID, business_unit_id UUID, routing_reason TEXT, assigned_at TIMESTAMPTZ, is_current BOOL)
+- managers(id UUID, full_name TEXT, email TEXT, business_unit_id UUID, is_vip_skill BOOL, is_chief_spec BOOL, languages TEXT[], current_load INT, max_load INT, is_active BOOL)
+- business_units(id UUID, name TEXT, city TEXT, address TEXT)
+
+Ответь ТОЛЬКО JSON без markdown:
 {
   "sql": "SELECT ...",
   "chart_type": "bar" | "pie" | "line" | "table" | "number",
@@ -163,6 +171,18 @@ type starAIRequest struct {
 	Messages    []openAIMessage `json:"messages"`
 	Temperature float64         `json:"temperature"`
 }
+Правила:
+- ТОЛЬКО SELECT запросы, без INSERT/UPDATE/DELETE/DROP
+- Используй JOIN когда нужно связать таблицы
+- Для офисов/городов: используй business_units.city
+- chart_type="number" для одного числового ответа (SELECT COUNT/AVG/SUM)
+- chart_type="bar" для сравнения категорий
+- chart_type="pie" для долей/процентов
+- chart_type="line" для временных данных
+- chart_type="table" если результат лучше показать таблицей
+- answer_text — краткий ответ на вопрос на русском
+- Для первых 2 колонок: 1-я = label/категория, 2-я = число (для графиков)
+- LIMIT 20 для списков`
 
 type starAIResponse struct {
 	SQL        string `json:"sql"`
@@ -269,6 +289,13 @@ func (s *StarService) callStarAIWithMessages(ctx context.Context, messages []ope
 		Model:       s.model,
 		Messages:    messages,
 		Temperature: 0,
+	// Call OpenAI to generate SQL
+	reqBody := openAIRequest{
+		Model: s.model,
+		Messages: []openAIMessage{
+			{Role: "system", Content: starSystemPrompt},
+			{Role: "user", Content: question},
+		},
 	}
 
 	bodyBytes, _ := json.Marshal(reqBody)
@@ -282,6 +309,7 @@ func (s *StarService) callStarAIWithMessages(ctx context.Context, messages []ope
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI request failed: %w", err)
+		return nil, fmt.Errorf("OpenAI request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -289,6 +317,7 @@ func (s *StarService) callStarAIWithMessages(ctx context.Context, messages []ope
 
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("OpenAI API вернул статус %d: %s", resp.StatusCode, string(respBytes))
+		return nil, fmt.Errorf("OpenAI status %d: %s", resp.StatusCode, string(respBytes))
 	}
 
 	var openAIResp openAIResponse
@@ -337,6 +366,45 @@ func stripCodeFences(s string) string {
 		}
 	}
 	return s
+		return nil, fmt.Errorf("parse OpenAI response: %w", err)
+	}
+
+	if openAIResp.Error != nil {
+		return nil, fmt.Errorf("OpenAI error: %s", openAIResp.Error.Message)
+	}
+
+	if len(openAIResp.Choices) == 0 {
+		return nil, fmt.Errorf("no choices in OpenAI response")
+	}
+
+	content := stripCodeFences(openAIResp.Choices[0].Message.Content)
+
+	var aiResp starAIResponse
+	if err := json.Unmarshal([]byte(content), &aiResp); err != nil {
+		return nil, fmt.Errorf("parse AI JSON: %w (raw: %s)", err, content)
+	}
+
+	log.Info().Str("question", question).Str("sql", aiResp.SQL).Str("chart", aiResp.ChartType).Msg("Star Task AI generated SQL")
+
+	// Execute the generated SQL
+	result, err := s.ExecuteReadOnlySQL(ctx, aiResp.SQL)
+	if err != nil {
+		return &StarQueryResponse{
+			Question:   question,
+			SQL:        aiResp.SQL,
+			AnswerText: fmt.Sprintf("Ошибка выполнения запроса: %v", err),
+			ChartType:  "table",
+			Error:      err.Error(),
+		}, nil
+	}
+
+	result.Question = question
+	result.ChartType = aiResp.ChartType
+	result.AnswerText = aiResp.AnswerText
+	result.XLabel = aiResp.XLabel
+	result.YLabel = aiResp.YLabel
+
+	return result, nil
 }
 
 // ExecuteReadOnlySQL safely executes a read-only SQL query.

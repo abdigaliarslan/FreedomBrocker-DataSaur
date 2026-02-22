@@ -10,6 +10,7 @@ export interface DashboardStats {
     total_offices: number;
     ai_processed_count: number;
     tickets_change_pct: number;
+    avg_processing_ms: number;
 }
 
 export interface SentimentData {

@@ -232,11 +232,16 @@ func (s *ImportService) ImportTickets(ctx context.Context, r io.Reader) (*Import
 			}
 		}
 
+		// Attachments
+		if v := getCol(record, colIdx, "attachments"); v != "" {
+			t.Attachments = &v
+		}
+
 		// Handle tickets with only attachments (no text body)
 		if t.Subject == "" && t.Body == "" {
-			if v := getCol(record, colIdx, "attachments"); v != "" {
-				t.Subject = "Вложение: " + v
-				t.Body = "Клиент отправил вложение: " + v
+			if t.Attachments != nil && *t.Attachments != "" {
+				t.Subject = "Вложение: " + *t.Attachments
+				t.Body = "Клиент отправил вложение: " + *t.Attachments
 			} else {
 				result.Errors = append(result.Errors, fmt.Sprintf("line %d: missing subject and body", lineNum))
 				result.Skipped++

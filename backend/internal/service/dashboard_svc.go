@@ -26,6 +26,7 @@ type DashboardStats struct {
 	TotalOffices     int     `json:"total_offices"`
 	AIProcessedCount int     `json:"ai_processed_count"`
 	TicketsChangePct float64 `json:"tickets_change_pct"`
+	AvgProcessingMs  float64 `json:"avg_processing_ms"`
 }
 
 func (s *DashboardService) Stats(ctx context.Context) (*DashboardStats, error) {
@@ -41,10 +42,21 @@ func (s *DashboardService) Stats(ctx context.Context) (*DashboardStats, error) {
 	s.pool.QueryRow(ctx, `SELECT COALESCE(AVG(priority_1_10), 0) FROM ticket_ai`).Scan(&stats.AvgPriority)
 	s.pool.QueryRow(ctx, `SELECT COALESCE(AVG(confidence_type), 0) FROM ticket_ai`).Scan(&stats.AvgConfidence)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM tickets WHERE client_segment = 'VIP'`).Scan(&stats.VIPCount)
-	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM ticket_ai WHERE geo_status = 'unknown'`).Scan(&stats.UnknownGeoCount)
+	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM ticket_ai WHERE geo_status IN ('unknown', 'NOT_FOUND', 'NO_ADDRESS', 'pending')`).Scan(&stats.UnknownGeoCount)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM managers WHERE is_active = true`).Scan(&stats.ActiveManagers)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM business_units`).Scan(&stats.TotalOffices)
 	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM ticket_ai`).Scan(&stats.AIProcessedCount)
+	s.pool.QueryRow(ctx, `SELECT COALESCE(AVG(processing_ms), 0) FROM ticket_ai WHERE processing_ms IS NOT NULL`).Scan(&stats.AvgProcessingMs)
+
+	// Tickets change: today vs yesterday
+	var today, yesterday int
+	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM tickets WHERE created_at >= CURRENT_DATE`).Scan(&today)
+	s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM tickets WHERE created_at >= CURRENT_DATE - INTERVAL '1 day' AND created_at < CURRENT_DATE`).Scan(&yesterday)
+	if yesterday > 0 {
+		stats.TicketsChangePct = float64(today-yesterday) / float64(yesterday) * 100
+	} else if today > 0 {
+		stats.TicketsChangePct = 100
+	}
 
 	return &stats, nil
 }
