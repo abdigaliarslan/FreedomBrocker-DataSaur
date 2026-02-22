@@ -37,6 +37,16 @@ func NewRoutingService(
 
 // RouteTicket runs the full 4-step routing pipeline for a ticket.
 func (s *RoutingService) RouteTicket(ctx context.Context, ticket *domain.Ticket, ai *domain.TicketAI) error {
+	// Skip routing if ticket already has an active assignment (prevents duplicate audit entries)
+	var existingCount int
+	_ = s.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM ticket_assignment WHERE ticket_id = $1 AND is_current = true`,
+		ticket.ID,
+	).Scan(&existingCount)
+	if existingCount > 0 {
+		return nil
+	}
+
 	// Step 1: Geo filter — extract city hint from raw address for fallback matching
 	rawCityPtr := extractCityFromAddress(ticket.RawAddress)
 	rawCity := ""
