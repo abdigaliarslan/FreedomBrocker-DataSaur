@@ -40,12 +40,22 @@ export default function ManagersPage() {
     }, []);
 
     useEffect(() => {
-        if (!selectedManager) { setManagerTickets([]); return; }
-        setTicketsLoading(true);
-        fetchManagerTickets(selectedManager.id)
-            .then(setManagerTickets)
-            .catch(console.error)
-            .finally(() => setTicketsLoading(false));
+        const load = async () => {
+            if (!selectedManager) {
+                setManagerTickets([]);
+                return;
+            }
+            setTicketsLoading(true);
+            try {
+                const tickets = await fetchManagerTickets(selectedManager.id);
+                setManagerTickets(tickets);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setTicketsLoading(false);
+            }
+        };
+        load();
     }, [selectedManager]);
 
     const uniqueCities = useMemo(() => [...new Set(managers.map(m => m.office_city).filter(Boolean))].sort(), [managers]);
