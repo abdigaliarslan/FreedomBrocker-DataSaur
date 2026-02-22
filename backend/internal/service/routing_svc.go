@@ -50,6 +50,13 @@ func (s *RoutingService) RouteTicket(ctx context.Context, ticket *domain.Ticket,
 	if err != nil {
 		return fmt.Errorf("list managers: %w", err)
 	}
+	// Fallback: if no managers in resolved office, use all active managers
+	if len(managers) == 0 {
+		managers, err = s.managerRepo.ListAllActive(ctx)
+		if err != nil {
+			return fmt.Errorf("list all managers fallback: %w", err)
+		}
+	}
 
 	segment := ""
 	if ticket.ClientSegment != nil {
