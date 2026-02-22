@@ -129,7 +129,7 @@ export default function StarAssistantPage() {
                 } : undefined,
             };
             setMessages(prev => [...prev, botMsg]);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
             const botMsg: Message = {
                 from: 'bot',
