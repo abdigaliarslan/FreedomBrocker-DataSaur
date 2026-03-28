@@ -1,1 +1,1 @@
-# superteam-build-a-bear
+# Autonomous-Smart-Contracts-Solana
